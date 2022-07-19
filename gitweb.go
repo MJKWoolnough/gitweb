@@ -42,15 +42,6 @@ func buildRepo(repo string) error {
 	return nil
 }
 
-func checkSHA(sha []byte) string {
-	for _, c := range sha {
-		if (c < '0' || c > '9') && (c < 'A' || c > 'Z') && (c < 'a' || c > 'z') {
-			return ""
-		}
-	}
-	return string(sha)
-}
-
 type repo struct {
 	name, desc, lastCommit string
 	lastCommitTime         time.Time

@@ -54,7 +54,11 @@ func (r *Repo) readHeadRef() (string, error) {
 	if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) {
 		return "", fmt.Errorf("error while reading HEAD: %w", err)
 	}
-	return string(buf[:n-1]), nil
+	id := checkSHA(buf[:n-1])
+	if id == "" {
+		return "", errors.New("invalid id")
+	}
+	return id, nil
 }
 
 func (r *Repo) GetLatestCommitID() (string, error) {
@@ -72,7 +76,11 @@ func (r *Repo) GetLatestCommitID() (string, error) {
 	if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) {
 		return "", fmt.Errorf("error while reading ref: %w", err)
 	}
-	return string(buf[:n-1]), nil
+	id := checkSHA(buf[:n-1])
+	if id == "" {
+		return "", errors.New("invalid id")
+	}
+	return id, nil
 }
 
 func (r *Repo) getObject(id string) (io.ReadCloser, error) {
@@ -178,4 +186,13 @@ func (r *Repo) GetCommit(id string) (*Commit, error) {
 	}
 	c.Msg = string(buf[:len(buf)-1])
 	return c, nil
+}
+
+func checkSHA(sha []byte) string {
+	for _, c := range sha {
+		if (c < '0' || c > '9') && (c < 'A' || c > 'Z') && (c < 'a' || c > 'z') {
+			return ""
+		}
+	}
+	return string(sha)
 }
