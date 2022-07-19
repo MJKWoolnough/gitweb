@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"compress/zlib"
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -17,17 +16,6 @@ import (
 	"strconv"
 	"time"
 )
-
-var config = struct {
-	ReposDir  string   `json:"reposDir"`
-	OutputDir string   `json:"outpurDir"`
-	Pinned    []string `json:"pinned"`
-	GitDir    string   `json:"gitDir"`
-}{
-	ReposDir:  "./",
-	OutputDir: ".",
-	GitDir:    ".git",
-}
 
 type commit struct {
 	tree, parent, msg string
@@ -193,21 +181,6 @@ func main() {
 	}
 }
 
-func readConfig(configFile string) error {
-	f, err := os.Open(configFile)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil
-		}
-		return fmt.Errorf("error while opening config file: %w", err)
-	}
-	defer f.Close()
-	if err := json.NewDecoder(f).Decode(&config); err != nil {
-		return fmt.Errorf("error parsing config file: %w", err)
-	}
-	return nil
-}
-
 func buildRepo(repo string) error {
 	return nil
 }
@@ -272,7 +245,7 @@ func buildIndex() error {
 		return fmt.Errorf("error creating index: %w", err)
 	}
 	defer f.Close()
-	if _, err := f.WriteString(indexHead); err != nil {
+	if _, err := f.WriteString(config.IndexHead); err != nil {
 		return fmt.Errorf("error writing index header: %w", err)
 	}
 	sort.Slice(repos, func(i, j int) bool {
@@ -290,13 +263,13 @@ func buildIndex() error {
 	for _, r := range repos {
 		pinned := ""
 		if r.pin != -1 {
-			pinned = pinClass
+			pinned = config.PinClass
 		}
-		if _, err := fmt.Fprintf(f, repoTemplate, pinned, "/"+r.name+"/", html.EscapeString(r.name), html.EscapeString(r.desc), r.lastCommitTime.Format(repoDateFormat), html.EscapeString(r.lastCommit)); err != nil {
+		if _, err := fmt.Fprintf(f, config.RepoTemplate, pinned, "/"+r.name+"/", html.EscapeString(r.name), html.EscapeString(r.desc), r.lastCommitTime.Format(config.RepoDateFormat), html.EscapeString(r.lastCommit)); err != nil {
 			return fmt.Errorf("error while writing index: %w", err)
 		}
 	}
-	if _, err := f.WriteString(indexFoot); err != nil {
+	if _, err := f.WriteString(config.IndexFoot); err != nil {
 		return fmt.Errorf("error writing index footer: %w", err)
 	}
 	return nil
@@ -307,26 +280,5 @@ func getObjectPath(gitDir, object string) string {
 }
 
 const (
-	indexHead = `<!DOCTYPE html>
-<html lang="en">
-        <head>
-                <title>Repositories</title>
-                <link type="text/css" rel="stylesheet" href="/style/repos.css">
-        </head>
-        <body>
-                <h1>Repositories</h1>
-                <ul>`
-	pinClass     = " class=\"pinned\""
-	repoTemplate = `
-                        <li%s>
-                                <a href=%q>%s</a>
-                                <span>%s</span>
-                                <span>Latest Commit:</span><span>%s: %s</span>
-                        </li>`
-	repoDateFormat = "2006/01/02 15:04:05"
-	indexFoot      = `
-                </ul>
-        </body>
-</html>`
 	defaultDesc = "Unnamed repository; edit this file 'description' to name the repository.\n"
 )
