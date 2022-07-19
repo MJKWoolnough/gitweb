@@ -1,6 +1,7 @@
 package main
 
 import (
+	"compress/zlib"
 	"errors"
 	"fmt"
 	"io"
@@ -71,6 +72,20 @@ func (r *Repo) GetLatestCommitID() (string, error) {
 	return string(buf[:n-1]), nil
 }
 
-func (r *Repo) getObject(id string) (interface{}, error) {
-	return nil, nil
+func (r *Repo) getObject(id string) (io.ReadCloser, error) {
+	f, err := os.Open(filepath.Join(r.path, "objects", id[:2], id[2:]))
+	if err != nil {
+		return nil, fmt.Errorf("error opening object file (%s): %w", id, err)
+	}
+	z, err := zlib.NewReader(f)
+	if err != nil {
+		return nil, fmt.Errorf("error decompressing object file (%s): %s", id, err)
+	}
+	return struct {
+		io.Reader
+		io.Closer
+	}{
+		Reader: z,
+		Closer: f,
+	}, nil
 }
