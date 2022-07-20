@@ -109,7 +109,7 @@ type Commit struct {
 func (r *Repo) GetCommit(id string) (*Commit, error) {
 	o, err := r.getObject(id)
 	if err != nil {
-		return nil, fmt.Errorf("error while opening lastCommit: %w", err)
+		return nil, fmt.Errorf("error while opening commit object: %w", err)
 	}
 	buf, err := io.ReadAll(o)
 	o.Close()
