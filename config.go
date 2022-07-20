@@ -11,6 +11,7 @@ var config = struct {
 	OutputDir      string   `json:"outpurDir"`
 	Pinned         []string `json:"pinned"`
 	GitDir         string   `json:"gitDir"`
+	IndexFile      string   `json:"indexFile"`
 	IndexHead      string   `json:"indexHead"`
 	IndexFoot      string   `json:"indexFoot"`
 	PinClass       string   `json:"pinClass"`
@@ -20,6 +21,7 @@ var config = struct {
 	ReposDir:  "./",
 	OutputDir: ".",
 	GitDir:    ".git",
+	IndexFile: "index.html",
 	IndexHead: `<!DOCTYPE html>
 <html lang="en">
         <head>
