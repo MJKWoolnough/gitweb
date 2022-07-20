@@ -188,6 +188,69 @@ func (r *Repo) GetCommit(id string) (*Commit, error) {
 	return c, nil
 }
 
+type Tree []TreeObject
+
+type TreeObject struct {
+	Name, Object string
+}
+
+func (r *Repo) GetTree(id string) (Tree, error) {
+	o, err := r.getObject(id)
+	if err != nil {
+		return nil, fmt.Errorf("error while opening tree object: %w", err)
+	}
+	buf, err := io.ReadAll(o)
+	o.Close()
+	if err != nil {
+		return nil, err
+	}
+	if string(buf[:5]) != "tree " {
+		return nil, errors.New("not a tree")
+	}
+	buf = buf[5:]
+	var l uint64
+	for n, c := range buf {
+		if c == 0 {
+			if l, err = strconv.ParseUint(string(buf[:n]), 10, 64); err != nil {
+				return nil, err
+			}
+			buf = buf[n+1:]
+			break
+		} else if c < '0' || c > '9' {
+			return nil, errors.New("invalid length")
+		}
+	}
+	if l == 0 {
+		return nil, errors.New("zero tree size")
+	} else if l != uint64(len(buf)) {
+		return nil, errors.New("invalid tree size")
+	}
+	var files Tree
+	for len(buf) > 0 {
+		p := bytes.IndexByte(buf, ' ')
+		if p == -1 {
+			return nil, errors.New("unable to read file mode")
+		}
+		mode := buf[:p]
+		buf = buf[p+1:]
+		p = bytes.IndexByte(buf, 0)
+		if p == -1 {
+			return nil, errors.New("unable to read file mode")
+		}
+		name := string(buf[:p])
+		if string(mode) == "40000" {
+			name += "/"
+		}
+		buf = buf[p+1:]
+		files = append(files, TreeObject{
+			Name:   name,
+			Object: fmt.Sprintf("%x", buf[:20]),
+		})
+		buf = buf[20:]
+	}
+	return files, nil
+}
+
 func checkSHA(sha []byte) string {
 	for _, c := range sha {
 		if (c < '0' || c > '9') && (c < 'A' || c > 'Z') && (c < 'a' || c > 'z') {
