@@ -54,11 +54,7 @@ func (r *Repo) readHeadRef() (string, error) {
 	if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) {
 		return "", fmt.Errorf("error while reading HEAD: %w", err)
 	}
-	id := checkSHA(buf[:n-1])
-	if id == "" {
-		return "", errors.New("invalid id")
-	}
-	return id, nil
+	return string(buf[:n-1]), nil
 }
 
 func (r *Repo) GetLatestCommitID() (string, error) {
