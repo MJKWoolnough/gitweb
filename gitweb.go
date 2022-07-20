@@ -81,7 +81,7 @@ func buildIndex() error {
 			}
 		}
 	}
-	f, err := os.Create(filepath.Join(config.OutputDir, "index.html"))
+	f, err := os.Create(filepath.Join(config.OutputDir, config.IndexFile))
 	if err != nil {
 		return fmt.Errorf("error creating index: %w", err)
 	}
