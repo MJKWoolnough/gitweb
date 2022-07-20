@@ -25,7 +25,7 @@ type Repo struct {
 
 type packObject struct {
 	pack   string
-	offset uint32
+	offset uint64
 }
 
 func OpenRepo(path string) *Repo {
@@ -108,7 +108,7 @@ func (r *Repo) loadPacksData() {
 		return
 	}
 	packs := bytes.Split(data, newLine)
-	r.packObjects = make(map[string]packObject, len(packs))
+	r.packObjects = make(map[string]packObject)
 	for _, p := range packs {
 		if len(p) > 5 && p[0] == 'P' && p[1] == ' ' && string(p[len(p)-5:]) == ".pack" {
 			pack := string(p[2:])
@@ -119,23 +119,55 @@ func (r *Repo) loadPacksData() {
 			}
 			sidx := byteio.StickyBigEndianReader{Reader: bufio.NewReader(idx)}
 			a := sidx.ReadUint32()
-			version := uint32(1)
 			if a == 4285812579 { // 0xff + 't0c'
-				version = sidx.ReadUint32()
-				if version != 2 {
+				if version := sidx.ReadUint32(); version != 2 {
 					idx.Close()
-					r.packsErr = fmt.Errorf("unknown version number (%d) for pack %s", version, pack)
+					r.packsErr = fmt.Errorf("unsupported version number (%d) in pack index for %s", version, pack)
 					return
 				}
+				io.CopyN(io.Discard, &sidx, 4*255) // ignore fan
 				a = sidx.ReadUint32()
+				names := make([]string, a)
+				var name [20]byte
+				for n := range names {
+					sidx.Read(name[:])
+					names[n] = fmt.Sprintf("%x", name)
+				}
+				io.CopyN(io.Discard, &sidx, 4*int64(a)) // ignore CRC32's
+				larger := make(map[uint32]string)
+				var largest uint32
+				for _, name := range names {
+					offset := sidx.ReadUint32()
+					if offset&0x80000000 != 0 {
+						index := offset & 0x7fffffff
+						if largest <= index {
+							largest = index + 1
+						}
+						larger[index] = name
+					} else {
+						r.packObjects[name] = packObject{
+							pack:   pack,
+							offset: uint64(offset),
+						}
+					}
+				}
+				for i := uint32(0); i < largest && sidx.Err == nil; i++ {
+					offset := sidx.ReadUint64()
+					if name, ok := larger[i]; ok {
+						r.packObjects[name] = packObject{
+							pack:   pack,
+							offset: offset,
+						}
+					}
+				}
+			} else {
+				r.packsErr = fmt.Errorf("version 1 unsupported in pack index for %s", pack)
 			}
-			var fan [256]uint32
-			for n := range fan[:255] {
-				fan[n] = a
-				a = sidx.ReadUint32()
-			}
-			fan[255] = a
 			idx.Close()
+			if sidx.Err != nil {
+				r.packsErr = fmt.Errorf("error reading pack index for %s: %w", pack, sidx.Err)
+				return
+			}
 		}
 	}
 }
