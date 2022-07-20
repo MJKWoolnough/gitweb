@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"bytes"
 	"compress/zlib"
 	"errors"
@@ -117,7 +116,7 @@ func (r *Repo) loadPacksData() {
 				r.packsErr = fmt.Errorf("error opening pack index for %s: %w", pack, err)
 				return
 			}
-			sidx := byteio.StickyBigEndianReader{Reader: bufio.NewReader(idx)}
+			sidx := byteio.StickyBigEndianReader{Reader: idx}
 			a := sidx.ReadUint32()
 			if a == 4285812579 { // 0xff + 't0c'
 				if version := sidx.ReadUint32(); version != 2 {
