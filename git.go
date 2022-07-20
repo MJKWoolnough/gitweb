@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"compress/zlib"
 	"errors"
@@ -9,11 +10,22 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"sync"
 	"time"
+
+	"vimagination.zapto.org/byteio"
 )
 
 type Repo struct {
-	path string
+	path        string
+	loadPacks   sync.Once
+	packsErr    error
+	packObjects map[string]packObject
+}
+
+type packObject struct {
+	pack   string
+	offset uint32
 }
 
 func OpenRepo(path string) *Repo {
@@ -79,8 +91,65 @@ func (r *Repo) GetLatestCommitID() (string, error) {
 	return id, nil
 }
 
+var newLine = []byte{'\n'}
+
+func (r *Repo) loadPacksData() {
+	f, err := os.Open(filepath.Join(r.path, "objects", "info", "packs"))
+	if err != nil {
+		if !os.IsNotExist(err) {
+			r.packsErr = fmt.Errorf("error opening packs file: %w", err)
+		}
+		return
+	}
+	data, err := io.ReadAll(f)
+	f.Close()
+	if err != nil {
+		r.packsErr = fmt.Errorf("error reading packs file: %w", err)
+		return
+	}
+	packs := bytes.Split(data, newLine)
+	r.packObjects = make(map[string]packObject, len(packs))
+	for _, p := range packs {
+		if len(p) > 5 && p[0] == 'P' && p[1] == ' ' && string(p[len(p)-5:]) == ".pack" {
+			pack := string(p[2:])
+			idx, err := os.Open(filepath.Join(r.path, "objects", "pack", pack[:len(pack)-4]+"idx"))
+			if err != nil {
+				r.packsErr = fmt.Errorf("error opening pack index for %s: %w", pack, err)
+				return
+			}
+			sidx := byteio.StickyBigEndianReader{Reader: bufio.NewReader(idx)}
+			a := sidx.ReadUint32()
+			version := uint32(1)
+			if a == 4285812579 { // 0xff + 't0c'
+				version = sidx.ReadUint32()
+				if version != 2 {
+					idx.Close()
+					r.packsErr = fmt.Errorf("unknown version number (%d) for pack %s", version, pack)
+					return
+				}
+				a = sidx.ReadUint32()
+			}
+			var fan [256]uint32
+			for n := range fan[:255] {
+				fan[n] = a
+				a = sidx.ReadUint32()
+			}
+			fan[255] = a
+			idx.Close()
+		}
+	}
+}
+
 func (r *Repo) getObject(id string) (io.ReadCloser, error) {
 	f, err := os.Open(filepath.Join(r.path, "objects", id[:2], id[2:]))
+	if os.IsNotExist(err) {
+		r.loadPacks.Do(r.loadPacksData)
+		if r.packsErr != nil {
+			err = r.packsErr
+		} else {
+			// open from pack
+		}
+	}
 	if err != nil {
 		return nil, fmt.Errorf("error opening object file (%s): %w", id, err)
 	}
