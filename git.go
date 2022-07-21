@@ -51,7 +51,7 @@ type deltaObject struct {
 
 func (d *deltaObject) Read(p []byte) (n int, err error) {
 	// TODO: the diff
-	return d.ReadCloser.Read(p)
+	return 0, errors.New("UNIMPLEMENTED")
 }
 
 func (d *deltaObject) Close() error {
