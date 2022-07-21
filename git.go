@@ -197,6 +197,27 @@ func (r *Repo) getObject(id string) (io.ReadCloser, error) {
 			if _, err := pack.Seek(p.offset, os.SEEK_SET); err != nil {
 				return nil, fmt.Errorf("error seeking to object offset: %w", err)
 			}
+			if _, err := pack.Read(buf[:1]); err != nil {
+				return nil, fmt.Errorf("error reading pack object type: %w", err)
+			}
+			typ := (buf[0] >> 4) & 3
+			size := int64(buf[0] & 15)
+			for buf[0]&0x80 != 0 {
+				if _, err := pack.Read(buf[:1]); err != nil {
+					return nil, fmt.Errorf("error reading pack object size: %w", err)
+				}
+				size <<= 7
+				size |= int64(buf[0] & 0x7f)
+			}
+			l := io.LimitReader(pack, size)
+			switch typ {
+			case 1:
+			case 2:
+			case 3:
+			case 4:
+			case 6:
+			case 7:
+			}
 		}
 	}
 	if err != nil {
