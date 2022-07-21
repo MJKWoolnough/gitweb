@@ -268,6 +268,7 @@ func (r *Repo) readPackOffset(p string, o int64) (io.ReadCloser, error) {
 			newOffset <<= 7
 			newOffset |= int64(buf[0] & 0x7f)
 		}
+		newOffset = o - newOffset
 		newPack = p
 	case ObjectRefDelta:
 		var ref [20]byte
