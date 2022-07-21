@@ -43,6 +43,22 @@ type objectReader struct {
 	io.Closer
 }
 
+type deltaObject struct {
+	io.ReadCloser
+	io.Reader
+	io.Closer
+}
+
+func (d *deltaObject) Read(p []byte) (n int, err error) {
+	// TODO: the diff
+	return d.ReadCloser.Read(p)
+}
+
+func (d *deltaObject) Close() error {
+	d.ReadCloser.Close()
+	return d.Closer.Close()
+}
+
 func (o *objectReader) Read(p []byte) (int, error) {
 	if o.Type != 0 {
 		p[0] = o.Type
@@ -228,6 +244,10 @@ func (r *Repo) readPackOffset(p string, o int64) (io.ReadCloser, error) {
 		size <<= 7
 		size |= int64(buf[0] & 0x7f)
 	}
+	var (
+		newPack   string
+		newOffset int64
+	)
 	switch typ {
 	case ObjectCommit, ObjectTree, ObjectBlob:
 		z, err := zlib.NewReader(io.LimitReader(pack, size))
@@ -240,9 +260,42 @@ func (r *Repo) readPackOffset(p string, o int64) (io.ReadCloser, error) {
 			Closer: pack,
 		}, nil
 	case ObjectOffsetDelta:
+		buf[0] = 0x80
+		for buf[0]&0x80 != 0 {
+			if _, err := pack.Read(buf[:1]); err != nil {
+				return nil, fmt.Errorf("error reading pack object size: %w", err)
+			}
+			newOffset <<= 7
+			newOffset |= int64(buf[0] & 0x7f)
+		}
+		newPack = p
 	case ObjectRefDelta:
+		var ref [20]byte
+		if _, err := pack.Read(ref[:]); err != nil {
+			return nil, fmt.Errorf("error reading delta ref: %w", err)
+		}
+		if n, ok := r.packObjects[string(ref[:])]; ok {
+			newPack = n.pack
+			newOffset = n.offset
+		} else {
+			return nil, fmt.Errorf("unable to locate base object: %s", ref)
+		}
+	default:
+		return nil, errors.New("invalid pack type")
 	}
-	return nil, errors.New("invalid pack type")
+	base, err := r.readPackOffset(newPack, newOffset)
+	if err != nil {
+		return nil, fmt.Errorf("error reading base object: %w", err)
+	}
+	z, err := zlib.NewReader(io.LimitReader(pack, size))
+	if err != nil {
+		return nil, fmt.Errorf("error starting to decompress object: %w", err)
+	}
+	return &deltaObject{
+		ReadCloser: base,
+		Reader:     z,
+		Closer:     pack,
+	}, nil
 }
 
 func (r *Repo) getObject(id string) (io.ReadCloser, error) {
