@@ -25,7 +25,7 @@ type Repo struct {
 
 type packObject struct {
 	pack   string
-	offset uint64
+	offset int64
 }
 
 func OpenRepo(path string) *Repo {
@@ -147,7 +147,7 @@ func (r *Repo) loadPacksData() {
 					} else {
 						r.packObjects[name] = packObject{
 							pack:   pack,
-							offset: uint64(offset),
+							offset: int64(offset),
 						}
 					}
 				}
@@ -156,7 +156,7 @@ func (r *Repo) loadPacksData() {
 					if name, ok := larger[i]; ok {
 						r.packObjects[name] = packObject{
 							pack:   pack,
-							offset: offset,
+							offset: int64(offset),
 						}
 					}
 				}
@@ -178,8 +178,25 @@ func (r *Repo) getObject(id string) (io.ReadCloser, error) {
 		r.loadPacks.Do(r.loadPacksData)
 		if r.packsErr != nil {
 			err = r.packsErr
-		} else {
-			// open from pack
+		} else if p, ok := r.packObjects[id]; ok {
+			pack, err := os.Open(filepath.Join(r.path, "objects", "pack", p.pack))
+			if err != nil {
+				return nil, fmt.Errorf("error opening pack file: %w", err)
+			}
+			var buf [4]byte
+			if _, err := pack.Read(buf[:]); err != nil {
+				return nil, fmt.Errorf("error reading pack header: %w", err)
+			} else if string(buf[:]) != "PACK" {
+				return nil, errors.New("invalid pack header")
+			}
+			if _, err := pack.Read(buf[:]); err != nil {
+				return nil, fmt.Errorf("error reading pack version: %w", err)
+			} else if buf[0] != 0 || buf[1] != 0 || buf[2] != 0 || buf[3] != 2 {
+				return nil, fmt.Errorf("read unsupported pack version: %x", buf)
+			}
+			if _, err := pack.Seek(p.offset, os.SEEK_SET); err != nil {
+				return nil, fmt.Errorf("error seeking to object offset: %w", err)
+			}
 		}
 	}
 	if err != nil {
