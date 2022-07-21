@@ -244,10 +244,7 @@ func (r *Repo) readPackOffset(p string, o int64) (io.ReadCloser, error) {
 		size <<= 7
 		size |= int64(buf[0] & 0x7f)
 	}
-	var (
-		newPack   string
-		newOffset int64
-	)
+	var base io.ReadCloser
 	switch typ {
 	case ObjectCommit, ObjectTree, ObjectBlob:
 		z, err := zlib.NewReader(io.LimitReader(pack, size))
@@ -261,32 +258,28 @@ func (r *Repo) readPackOffset(p string, o int64) (io.ReadCloser, error) {
 		}, nil
 	case ObjectOffsetDelta:
 		buf[0] = 0x80
+		var baseOffset int64
 		for buf[0]&0x80 != 0 {
 			if _, err := pack.Read(buf[:1]); err != nil {
 				return nil, fmt.Errorf("error reading pack object size: %w", err)
 			}
-			newOffset <<= 7
-			newOffset |= int64(buf[0] & 0x7f)
+			baseOffset <<= 7
+			baseOffset |= int64(buf[0] & 0x7f)
 		}
-		newOffset = o - newOffset
-		newPack = p
+		if base, err = r.readPackOffset(p, o-baseOffset); err != nil {
+			return nil, fmt.Errorf("error reading base object: %w", err)
+		}
 	case ObjectRefDelta:
 		var ref [20]byte
 		if _, err := pack.Read(ref[:]); err != nil {
 			return nil, fmt.Errorf("error reading delta ref: %w", err)
 		}
-		if n, ok := r.packObjects[string(ref[:])]; ok {
-			newPack = n.pack
-			newOffset = n.offset
-		} else {
-			return nil, fmt.Errorf("unable to locate base object: %s", ref)
+		base, err = r.getObject(string(ref[:]))
+		if err != nil {
+			return nil, fmt.Errorf("error reading base object: %w", err)
 		}
 	default:
 		return nil, errors.New("invalid pack type")
-	}
-	base, err := r.readPackOffset(newPack, newOffset)
-	if err != nil {
-		return nil, fmt.Errorf("error reading base object: %w", err)
 	}
 	z, err := zlib.NewReader(io.LimitReader(pack, size))
 	if err != nil {
