@@ -16,6 +16,15 @@ import (
 	"vimagination.zapto.org/byteio"
 )
 
+const (
+	ObjectCommit = 1
+	ObjectTree   = 2
+	ObjectBlob   = 3
+	// ObjectTag = 4
+	ObjectOffsetDelta = 6
+	ObjectRefDelta    = 7
+)
+
 type Repo struct {
 	path        string
 	loadPacks   sync.Once
@@ -26,6 +35,22 @@ type Repo struct {
 type packObject struct {
 	pack   string
 	offset int64
+}
+
+type objectReader struct {
+	Type byte
+	io.Reader
+	io.Closer
+}
+
+func (o *objectReader) Read(p []byte) (int, error) {
+	if o.Type != 0 {
+		p[0] = o.Type
+		o.Type = 0
+		p = p[1:]
+	}
+	n, err := o.Reader.Read(p)
+	return n + 1, err
 }
 
 func OpenRepo(path string) *Repo {
@@ -209,14 +234,20 @@ func (r *Repo) getObject(id string) (io.ReadCloser, error) {
 				size <<= 7
 				size |= int64(buf[0] & 0x7f)
 			}
-			l := io.LimitReader(pack, size)
+			fmt.Println(typ, size)
+			z, err := zlib.NewReader(io.LimitReader(pack, size))
+			if err != nil {
+				return nil, fmt.Errorf("error starting to decompress object: %w", err)
+			}
 			switch typ {
-			case 1:
-			case 2:
-			case 3:
-			case 4:
-			case 6:
-			case 7:
+			case ObjectCommit, ObjectTree, ObjectBlob:
+				return &objectReader{
+					Type:   typ,
+					Reader: z,
+					Closer: pack,
+				}, nil
+			case ObjectOffsetDelta:
+			case ObjectRefDelta:
 			}
 		}
 	}
@@ -251,26 +282,30 @@ func (r *Repo) GetCommit(id string) (*Commit, error) {
 	if err != nil {
 		return nil, err
 	}
-	if string(buf[:7]) != "commit " {
-		return nil, errors.New("not a commit")
-	}
-	buf = buf[7:]
-	var l uint64
-	for n, c := range buf {
-		if c == 0 {
-			if l, err = strconv.ParseUint(string(buf[:n]), 10, 64); err != nil {
-				return nil, err
-			}
-			buf = buf[n+1:]
-			break
-		} else if c < '0' || c > '9' {
-			return nil, errors.New("invalid length")
+	if buf[0] == ObjectCommit {
+		buf = buf[1:]
+	} else {
+		if string(buf[:7]) != "commit " {
+			return nil, errors.New("not a commit")
 		}
-	}
-	if l == 0 {
-		return nil, errors.New("zero commit size")
-	} else if l != uint64(len(buf)) {
-		return nil, errors.New("invalid commit size")
+		buf = buf[7:]
+		var l uint64
+		for n, c := range buf {
+			if c == 0 {
+				if l, err = strconv.ParseUint(string(buf[:n]), 10, 64); err != nil {
+					return nil, err
+				}
+				buf = buf[n+1:]
+				break
+			} else if c < '0' || c > '9' {
+				return nil, errors.New("invalid length")
+			}
+		}
+		if l == 0 {
+			return nil, errors.New("zero commit size")
+		} else if l != uint64(len(buf)) {
+			return nil, errors.New("invalid commit size")
+		}
 	}
 	c := new(Commit)
 	for {
@@ -339,26 +374,30 @@ func (r *Repo) GetTree(id string) (Tree, error) {
 	if err != nil {
 		return nil, err
 	}
-	if string(buf[:5]) != "tree " {
-		return nil, errors.New("not a tree")
-	}
-	buf = buf[5:]
-	var l uint64
-	for n, c := range buf {
-		if c == 0 {
-			if l, err = strconv.ParseUint(string(buf[:n]), 10, 64); err != nil {
-				return nil, err
-			}
-			buf = buf[n+1:]
-			break
-		} else if c < '0' || c > '9' {
-			return nil, errors.New("invalid length")
+	if buf[0] == ObjectTree {
+		buf = buf[1:]
+	} else {
+		if string(buf[:5]) != "tree " {
+			return nil, errors.New("not a tree")
 		}
-	}
-	if l == 0 {
-		return nil, errors.New("zero tree size")
-	} else if l != uint64(len(buf)) {
-		return nil, errors.New("invalid tree size")
+		buf = buf[5:]
+		var l uint64
+		for n, c := range buf {
+			if c == 0 {
+				if l, err = strconv.ParseUint(string(buf[:n]), 10, 64); err != nil {
+					return nil, err
+				}
+				buf = buf[n+1:]
+				break
+			} else if c < '0' || c > '9' {
+				return nil, errors.New("invalid length")
+			}
+		}
+		if l == 0 {
+			return nil, errors.New("zero tree size")
+		} else if l != uint64(len(buf)) {
+			return nil, errors.New("invalid tree size")
+		}
 	}
 	var files Tree
 	for len(buf) > 0 {
