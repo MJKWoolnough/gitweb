@@ -14,13 +14,14 @@ import (
 	"time"
 
 	"vimagination.zapto.org/byteio"
+	"vimagination.zapto.org/memio"
 )
 
 const (
-	ObjectCommit = 1
-	ObjectTree   = 2
-	ObjectBlob   = 3
-	// ObjectTag = 4
+	ObjectCommit      = 1
+	ObjectTree        = 2
+	ObjectBlob        = 3
+	ObjectTag         = 4
 	ObjectOffsetDelta = 6
 	ObjectRefDelta    = 7
 )
@@ -41,22 +42,6 @@ type objectReader struct {
 	Type byte
 	io.Reader
 	io.Closer
-}
-
-type deltaObject struct {
-	io.ReadCloser
-	io.Reader
-	io.Closer
-}
-
-func (d *deltaObject) Read(p []byte) (n int, err error) {
-	// TODO: the diff
-	return 0, errors.New("UNIMPLEMENTED")
-}
-
-func (d *deltaObject) Close() error {
-	d.ReadCloser.Close()
-	return d.Closer.Close()
 }
 
 func (o *objectReader) Read(p []byte) (int, error) {
@@ -295,15 +280,65 @@ func (r *Repo) readPackOffset(p string, o int64) (io.ReadCloser, error) {
 		return nil, errors.New("invalid pack type")
 	}
 	defer pack.Close()
+	var (
+		baseBuf memio.Buffer
+		patched memio.Buffer
+	)
+	switch base := base.(type) {
+	case *objectReader:
+		_, err = baseBuf.ReadFrom(base)
+		base.Close()
+		if err != nil {
+			return nil, fmt.Errorf("error reading base object")
+		}
+	case *memio.Buffer:
+		baseBuf = *base
+	default:
+		_, err = baseBuf.ReadFrom(base)
+		base.Close()
+		if err != nil {
+			return nil, fmt.Errorf("error reading base object")
+		}
+		var typ byte
+		if string(baseBuf[:6]) == "commit " {
+			typ = ObjectCommit
+			baseBuf = baseBuf[6:]
+		} else if string(baseBuf[:5]) == "tree " {
+			typ = ObjectTree
+			baseBuf = baseBuf[5:]
+		} else if string(baseBuf[:5]) == "blob " {
+			typ = ObjectBlob
+			baseBuf = baseBuf[5:]
+		} else if string(baseBuf[:4]) == "tag " {
+			typ = ObjectTag
+			baseBuf = baseBuf[4:]
+		} else {
+			return nil, errors.New("unknown base type")
+		}
+		var l uint64
+		for n, c := range baseBuf {
+			if c == 0 {
+				if l, err = strconv.ParseUint(string(buf[:n]), 10, 64); err != nil {
+					return nil, err
+				}
+				buf = baseBuf[n:]
+				break
+			} else if c < '0' || c > '9' {
+				return nil, errors.New("invalid length")
+			}
+		}
+		if l == 0 {
+			return nil, errors.New("zero tree size")
+		} else if l != uint64(len(buf))+1 {
+			return nil, errors.New("invalid tree size")
+		}
+		buf[0] = typ
+	}
 	z, err := zlib.NewReader(io.LimitReader(pack, size))
 	if err != nil {
 		return nil, fmt.Errorf("error starting to decompress object: %w", err)
 	}
-	return &deltaObject{
-		ReadCloser: base,
-		Reader:     z,
-		Closer:     pack,
-	}, nil
+	return nil, nil
 }
 
 func (r *Repo) getObject(id string) (io.ReadCloser, error) {
@@ -342,10 +377,15 @@ func (r *Repo) GetCommit(id string) (*Commit, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error while opening commit object: %w", err)
 	}
-	buf, err := io.ReadAll(o)
-	o.Close()
-	if err != nil {
-		return nil, err
+	var buf []byte
+	if m, ok := o.(*memio.Buffer); ok {
+		buf = *m
+	} else {
+		buf, err = io.ReadAll(o)
+		o.Close()
+		if err != nil {
+			return nil, err
+		}
 	}
 	if buf[0] == ObjectCommit {
 		buf = buf[1:]
@@ -434,10 +474,15 @@ func (r *Repo) GetTree(id string) (Tree, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error while opening tree object: %w", err)
 	}
-	buf, err := io.ReadAll(o)
-	o.Close()
-	if err != nil {
-		return nil, err
+	var buf []byte
+	if m, ok := o.(*memio.Buffer); ok {
+		buf = *m
+	} else {
+		buf, err = io.ReadAll(o)
+		o.Close()
+		if err != nil {
+			return nil, err
+		}
 	}
 	if buf[0] == ObjectTree {
 		buf = buf[1:]
