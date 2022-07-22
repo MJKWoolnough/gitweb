@@ -274,7 +274,7 @@ func (r *Repo) readPackOffset(p string, o int64) (io.ReadCloser, error) {
 	default:
 		return nil, errors.New("invalid pack type")
 	}
-	var baseBuf memio.Buffer
+	var baseBuf memio.LimitedBuffer
 	switch base := base.(type) {
 	case *objectReader:
 		_, err = baseBuf.ReadFrom(base)
@@ -282,10 +282,10 @@ func (r *Repo) readPackOffset(p string, o int64) (io.ReadCloser, error) {
 		if err != nil {
 			return nil, fmt.Errorf("error reading base object")
 		}
-	case *memio.Buffer:
+	case *memio.LimitedBuffer:
 		baseBuf = *base
 	default:
-		_, err = baseBuf.ReadFrom(base)
+		_, err = (*memio.Buffer)(&baseBuf).ReadFrom(base)
 		base.Close()
 		if err != nil {
 			return nil, fmt.Errorf("error reading base object")
@@ -331,7 +331,7 @@ func (r *Repo) readPackOffset(p string, o int64) (io.ReadCloser, error) {
 	if uint64(len(baseBuf)) != bSize {
 		return nil, errors.New("invalid base size")
 	}
-	patched := make(memio.Buffer, 1, b.ReadUintX()+1)
+	patched := make(memio.LimitedBuffer, 1, b.ReadUintX()+1)
 	patched[0] = baseBuf[0]
 	baseBuf = baseBuf[1:]
 	for b.Err == nil {
@@ -341,7 +341,9 @@ func (r *Repo) readPackOffset(p string, o int64) (io.ReadCloser, error) {
 			if l == 0 {
 				break
 			}
-			io.CopyN(&patched, z, int64(l))
+			if _, err := io.CopyN(&patched, z, int64(l)); err != nil {
+				return nil, fmt.Errorf("error copying data from patch: %w", err)
+			}
 		} else {
 		}
 	}
@@ -388,7 +390,7 @@ func (r *Repo) GetCommit(id string) (*Commit, error) {
 		return nil, fmt.Errorf("error while opening commit object: %w", err)
 	}
 	var buf []byte
-	if m, ok := o.(*memio.Buffer); ok {
+	if m, ok := o.(*memio.LimitedBuffer); ok {
 		buf = *m
 	} else {
 		buf, err = io.ReadAll(o)
@@ -482,7 +484,7 @@ func (r *Repo) GetTree(id string) (Tree, error) {
 		return nil, fmt.Errorf("error while opening tree object: %w", err)
 	}
 	var buf []byte
-	if m, ok := o.(*memio.Buffer); ok {
+	if m, ok := o.(*memio.LimitedBuffer); ok {
 		buf = *m
 	} else {
 		buf, err = io.ReadAll(o)
