@@ -345,6 +345,26 @@ func (r *Repo) readPackOffset(p string, o int64) (io.ReadCloser, error) {
 				return nil, fmt.Errorf("error copying data from patch: %w", err)
 			}
 		} else {
+			var offset, size uint32
+			for i := 0; i < 4; i++ {
+				instr <<= 1
+				if instr&0x80 == 1 {
+					offset |= uint32(b.ReadUint8()) << (i * 8)
+				}
+			}
+			for i := 0; i < 3; i++ {
+				instr <<= 1
+				if instr&0x80 == 1 {
+					size |= uint32(b.ReadUint8()) << (i * 8)
+				}
+			}
+			if size == 0 {
+				size = 0x10000
+			}
+			if uint32(len(patched))+size > uint32(cap(patched)) {
+				return nil, errors.New("patch overwrite")
+			}
+			patched = append(patched, baseBuf[offset:offset+size]...)
 		}
 	}
 	if b.Err != nil {
