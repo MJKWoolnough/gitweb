@@ -314,7 +314,7 @@ func (r *Repo) readPackOffset(p string, o int64) (io.ReadCloser, error) {
 		if err != nil {
 			return nil, fmt.Errorf("error parsing base size: %w", err)
 		}
-		baseBuf = baseBuf[p+1:]
+		baseBuf = baseBuf[p:]
 		if l == 0 {
 			return nil, errors.New("zero base size")
 		} else if l != uint64(len(baseBuf))+1 {
@@ -331,7 +331,9 @@ func (r *Repo) readPackOffset(p string, o int64) (io.ReadCloser, error) {
 	if uint64(len(baseBuf)) != bSize {
 		return nil, errors.New("invalid base size")
 	}
-	patched := make(memio.Buffer, 0, b.ReadUintX())
+	patched := make(memio.Buffer, 1, b.ReadUintX()+1)
+	patched[0] = baseBuf[0]
+	baseBuf = baseBuf[1:]
 	for b.Err == nil {
 		instr := b.ReadUint8()
 		if instr&0x80 == 0 {
