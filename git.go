@@ -309,22 +309,19 @@ func (r *Repo) readPackOffset(p string, o int64) (io.ReadCloser, error) {
 		} else {
 			return nil, errors.New("unknown base type")
 		}
-		var l uint64
-		for n, c := range baseBuf {
-			if c == 0 {
-				if l, err = strconv.ParseUint(string(buf[:n]), 10, 64); err != nil {
-					return nil, err
-				}
-				buf = baseBuf[n:]
-				break
-			} else if c < '0' || c > '9' {
-				return nil, errors.New("invalid length")
-			}
+		p := bytes.IndexByte(baseBuf, 0)
+		if p < 0 {
+			return nil, errors.New("invalid base length")
 		}
+		l, err := strconv.ParseUint(string(buf[:p]), 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("error parsing base size: %w", err)
+		}
+		baseBuf = baseBuf[p+1:]
 		if l == 0 {
-			return nil, errors.New("zero tree size")
+			return nil, errors.New("zero base size")
 		} else if l != uint64(len(buf))+1 {
-			return nil, errors.New("invalid tree size")
+			return nil, errors.New("invalid base size")
 		}
 		buf[0] = typ
 	}
@@ -332,6 +329,7 @@ func (r *Repo) readPackOffset(p string, o int64) (io.ReadCloser, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error starting to decompress object: %w", err)
 	}
+
 	return nil, nil
 }
 
@@ -388,18 +386,15 @@ func (r *Repo) GetCommit(id string) (*Commit, error) {
 			return nil, errors.New("not a commit")
 		}
 		buf = buf[7:]
-		var l uint64
-		for n, c := range buf {
-			if c == 0 {
-				if l, err = strconv.ParseUint(string(buf[:n]), 10, 64); err != nil {
-					return nil, err
-				}
-				buf = buf[n+1:]
-				break
-			} else if c < '0' || c > '9' {
-				return nil, errors.New("invalid length")
-			}
+		p := bytes.IndexByte(buf, 0)
+		if p < 0 {
+			return nil, errors.New("invalid commit length")
 		}
+		l, err := strconv.ParseUint(string(buf[:p]), 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("error parsing commit size: %w", err)
+		}
+		buf = buf[p+1:]
 		if l == 0 {
 			return nil, errors.New("zero commit size")
 		} else if l != uint64(len(buf)) {
@@ -485,18 +480,15 @@ func (r *Repo) GetTree(id string) (Tree, error) {
 			return nil, errors.New("not a tree")
 		}
 		buf = buf[5:]
-		var l uint64
-		for n, c := range buf {
-			if c == 0 {
-				if l, err = strconv.ParseUint(string(buf[:n]), 10, 64); err != nil {
-					return nil, err
-				}
-				buf = buf[n+1:]
-				break
-			} else if c < '0' || c > '9' {
-				return nil, errors.New("invalid length")
-			}
+		p := bytes.IndexByte(buf, 0)
+		if p < 0 {
+			return nil, errors.New("invalid tree length")
 		}
+		l, err := strconv.ParseUint(string(buf[:p]), 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("error parsing tree size: %w", err)
+		}
+		buf = buf[p+1:]
 		if l == 0 {
 			return nil, errors.New("zero tree size")
 		} else if l != uint64(len(buf)) {
