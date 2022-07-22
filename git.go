@@ -329,8 +329,22 @@ func (r *Repo) readPackOffset(p string, o int64) (io.ReadCloser, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error starting to decompress object: %w", err)
 	}
-
-	return nil, nil
+	b := byteio.StickyLittleEndianReader{Reader: bufio.NewReader(z)}
+	for b.Err == nil {
+		instr := b.ReadUint8()
+		if instr&0x80 == 0 {
+			l := instr & 0x7f
+			if l == 0 {
+				break
+			}
+			io.CopyN(&patched, z, int64(l))
+		} else {
+		}
+	}
+	if b.Err != nil {
+		return nil, fmt.Errorf("error reading patch: %w", err)
+	}
+	return &patched, nil
 }
 
 func (r *Repo) getObject(id string) (io.ReadCloser, error) {
