@@ -220,25 +220,32 @@ func (r *Repo) readPackOffset(p string, o int64) (io.ReadCloser, error) {
 	}
 	var buf [4]byte
 	if _, err := pack.Read(buf[:]); err != nil {
+		pack.Close()
 		return nil, fmt.Errorf("error reading pack header: %w", err)
 	} else if string(buf[:]) != "PACK" {
+		pack.Close()
 		return nil, errors.New("invalid pack header")
 	}
 	if _, err := pack.Read(buf[:]); err != nil {
+		pack.Close()
 		return nil, fmt.Errorf("error reading pack version: %w", err)
 	} else if buf[0] != 0 || buf[1] != 0 || buf[2] != 0 || buf[3] != 2 {
+		pack.Close()
 		return nil, fmt.Errorf("read unsupported pack version: %x", buf)
 	}
 	if _, err := pack.Seek(o, os.SEEK_SET); err != nil {
+		pack.Close()
 		return nil, fmt.Errorf("error seeking to object offset: %w", err)
 	}
 	if _, err := pack.Read(buf[:1]); err != nil {
+		pack.Close()
 		return nil, fmt.Errorf("error reading pack object type: %w", err)
 	}
 	typ := (buf[0] >> 4) & 3
 	size := int64(buf[0] & 15)
 	for buf[0]&0x80 != 0 {
 		if _, err := pack.Read(buf[:1]); err != nil {
+			pack.Close()
 			return nil, fmt.Errorf("error reading pack object size: %w", err)
 		}
 		size <<= 7
@@ -249,6 +256,7 @@ func (r *Repo) readPackOffset(p string, o int64) (io.ReadCloser, error) {
 	case ObjectCommit, ObjectTree, ObjectBlob:
 		z, err := zlib.NewReader(io.LimitReader(pack, size))
 		if err != nil {
+			pack.Close()
 			return nil, fmt.Errorf("error starting to decompress object: %w", err)
 		}
 		return &objectReader{
@@ -261,26 +269,32 @@ func (r *Repo) readPackOffset(p string, o int64) (io.ReadCloser, error) {
 		var baseOffset int64
 		for buf[0]&0x80 != 0 {
 			if _, err := pack.Read(buf[:1]); err != nil {
+				pack.Close()
 				return nil, fmt.Errorf("error reading pack object size: %w", err)
 			}
 			baseOffset <<= 7
 			baseOffset |= int64(buf[0] & 0x7f)
 		}
 		if base, err = r.readPackOffset(p, o-baseOffset); err != nil {
+			pack.Close()
 			return nil, fmt.Errorf("error reading base object: %w", err)
 		}
 	case ObjectRefDelta:
 		var ref [20]byte
 		if _, err := pack.Read(ref[:]); err != nil {
+			pack.Close()
 			return nil, fmt.Errorf("error reading delta ref: %w", err)
 		}
 		base, err = r.getObject(string(ref[:]))
 		if err != nil {
+			pack.Close()
 			return nil, fmt.Errorf("error reading base object: %w", err)
 		}
 	default:
+		pack.Close()
 		return nil, errors.New("invalid pack type")
 	}
+	defer pack.Close()
 	z, err := zlib.NewReader(io.LimitReader(pack, size))
 	if err != nil {
 		return nil, fmt.Errorf("error starting to decompress object: %w", err)
