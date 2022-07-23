@@ -51,11 +51,15 @@ type Repo struct {
 	loadPacks   sync.Once
 	packsErr    error
 	packObjects map[string]packObject
+
+	cacheMu sync.RWMutex
+	cache   map[string]interface{}
 }
 
 func OpenRepo(path string) *Repo {
 	return &Repo{
-		path: path,
+		path:  path,
+		cache: make(map[string]interface{}),
 	}
 }
 
@@ -407,6 +411,15 @@ type Commit struct {
 }
 
 func (r *Repo) GetCommit(id string) (*Commit, error) {
+	r.cacheMu.RLock()
+	co, ok := r.cache[id]
+	r.cacheMu.RUnlock()
+	if ok {
+		if c, ok := co.(*Commit); ok {
+			return c, nil
+		}
+		return nil, errors.New("wrong type")
+	}
 	o, err := r.getObject(id, ObjectCommit)
 	if err != nil {
 		return nil, fmt.Errorf("error while opening commit object: %w", err)
@@ -469,6 +482,9 @@ func (r *Repo) GetCommit(id string) (*Commit, error) {
 		}
 	}
 	c.Msg = string(buf[:len(buf)-1])
+	r.cacheMu.Lock()
+	r.cache[id] = c
+	r.cacheMu.Unlock()
 	return c, nil
 }
 
@@ -479,6 +495,15 @@ type TreeObject struct {
 }
 
 func (r *Repo) GetTree(id string) (Tree, error) {
+	r.cacheMu.RLock()
+	co, ok := r.cache[id]
+	r.cacheMu.RUnlock()
+	if ok {
+		if t, ok := co.(Tree); ok {
+			return t, nil
+		}
+		return nil, errors.New("wrong type")
+	}
 	o, err := r.getObject(id, ObjectTree)
 	if err != nil {
 		return nil, fmt.Errorf("error while opening tree object: %w", err)
@@ -516,6 +541,9 @@ func (r *Repo) GetTree(id string) (Tree, error) {
 		})
 		buf = buf[20:]
 	}
+	r.cacheMu.Lock()
+	r.cache[id] = files
+	r.cacheMu.Unlock()
 	return files, nil
 }
 
