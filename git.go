@@ -26,6 +26,26 @@ const (
 	ObjectRefDelta    = 7
 )
 
+var (
+	objectHeaders = [...]string{
+		"",
+		"commit ",
+		"tree ",
+		"blob ",
+		"tag ",
+	}
+	bufPool = sync.Pool{
+		New: func() interface{} {
+			return new([21]byte)
+		},
+	}
+)
+
+type packObject struct {
+	pack   string
+	offset int64
+}
+
 type Repo struct {
 	path        string
 	loadPacks   sync.Once
@@ -33,31 +53,15 @@ type Repo struct {
 	packObjects map[string]packObject
 }
 
-type packObject struct {
-	pack   string
-	offset int64
-}
-
-type objectReader struct {
-	Type byte
-	io.Reader
-	io.Closer
-}
-
-func (o *objectReader) Read(p []byte) (int, error) {
-	if o.Type != 0 {
-		p[0] = o.Type
-		o.Type = 0
-		p = p[1:]
-	}
-	n, err := o.Reader.Read(p)
-	return n + 1, err
-}
-
 func OpenRepo(path string) *Repo {
 	return &Repo{
 		path: path,
 	}
+}
+
+type readCloser struct {
+	io.Reader
+	io.Closer
 }
 
 func (r *Repo) GetDescription() string {
@@ -198,7 +202,7 @@ func (r *Repo) loadPacksData() {
 	}
 }
 
-func (r *Repo) readPackOffset(p string, o int64) (io.ReadCloser, error) {
+func (r *Repo) readPackOffset(p string, o int64, want int) (io.ReadCloser, error) {
 	pack, err := os.Open(filepath.Join(r.path, "objects", "pack", p))
 	if err != nil {
 		return nil, fmt.Errorf("error opening pack file: %w", err)
@@ -227,6 +231,9 @@ func (r *Repo) readPackOffset(p string, o int64) (io.ReadCloser, error) {
 		return nil, fmt.Errorf("error reading pack object type: %w", err)
 	}
 	typ := (buf[0] >> 4) & 3
+	if int(typ) != want {
+		return nil, errors.New("wrong packed type")
+	}
 	size := int64(buf[0] & 15)
 	for buf[0]&0x80 != 0 {
 		if _, err := pack.Read(buf[:1]); err != nil {
@@ -240,12 +247,10 @@ func (r *Repo) readPackOffset(p string, o int64) (io.ReadCloser, error) {
 	case ObjectCommit, ObjectTree, ObjectBlob:
 		z, err := zlib.NewReader(io.LimitReader(pack, size))
 		if err != nil {
-			pack.Close()
 			return nil, fmt.Errorf("error starting to decompress object: %w", err)
 		}
 		close = false
-		return &objectReader{
-			Type:   typ,
+		return &readCloser{
 			Reader: z,
 			Closer: pack,
 		}, nil
@@ -259,7 +264,7 @@ func (r *Repo) readPackOffset(p string, o int64) (io.ReadCloser, error) {
 			baseOffset <<= 7
 			baseOffset |= int64(buf[0] & 0x7f)
 		}
-		if base, err = r.readPackOffset(p, o-baseOffset); err != nil {
+		if base, err = r.readPackOffset(p, o-baseOffset, want); err != nil {
 			return nil, fmt.Errorf("error reading base object: %w", err)
 		}
 	case ObjectRefDelta:
@@ -267,60 +272,12 @@ func (r *Repo) readPackOffset(p string, o int64) (io.ReadCloser, error) {
 		if _, err := pack.Read(ref[:]); err != nil {
 			return nil, fmt.Errorf("error reading delta ref: %w", err)
 		}
-		base, err = r.getObject(string(ref[:]))
+		base, err = r.getObject(string(ref[:]), want)
 		if err != nil {
 			return nil, fmt.Errorf("error reading base object: %w", err)
 		}
 	default:
 		return nil, errors.New("invalid pack type")
-	}
-	var baseBuf memio.LimitedBuffer
-	switch base := base.(type) {
-	case *objectReader:
-		_, err = baseBuf.ReadFrom(base)
-		base.Close()
-		if err != nil {
-			return nil, fmt.Errorf("error reading base object")
-		}
-	case *memio.LimitedBuffer:
-		baseBuf = *base
-	default:
-		_, err = (*memio.Buffer)(&baseBuf).ReadFrom(base)
-		base.Close()
-		if err != nil {
-			return nil, fmt.Errorf("error reading base object")
-		}
-		var typ byte
-		if string(baseBuf[:6]) == "commit " {
-			typ = ObjectCommit
-			baseBuf = baseBuf[6:]
-		} else if string(baseBuf[:5]) == "tree " {
-			typ = ObjectTree
-			baseBuf = baseBuf[5:]
-		} else if string(baseBuf[:5]) == "blob " {
-			typ = ObjectBlob
-			baseBuf = baseBuf[5:]
-		} else if string(baseBuf[:4]) == "tag " {
-			typ = ObjectTag
-			baseBuf = baseBuf[4:]
-		} else {
-			return nil, errors.New("unknown base type")
-		}
-		p := bytes.IndexByte(baseBuf, 0)
-		if p < 0 {
-			return nil, errors.New("invalid base length")
-		}
-		l, err := strconv.ParseUint(string(baseBuf[:p]), 10, 64)
-		if err != nil {
-			return nil, fmt.Errorf("error parsing base size: %w", err)
-		}
-		baseBuf = baseBuf[p:]
-		if l == 0 {
-			return nil, errors.New("zero base size")
-		} else if l != uint64(len(baseBuf))+1 {
-			return nil, errors.New("invalid base size")
-		}
-		baseBuf[0] = typ
 	}
 	z, err := zlib.NewReader(io.LimitReader(pack, size))
 	if err != nil {
@@ -328,12 +285,23 @@ func (r *Repo) readPackOffset(p string, o int64) (io.ReadCloser, error) {
 	}
 	b := byteio.StickyLittleEndianReader{Reader: bufio.NewReader(z)}
 	bSize := b.ReadUintX()
-	if uint64(len(baseBuf)) != bSize {
-		return nil, errors.New("invalid base size")
+	var baseBuf memio.LimitedBuffer
+	switch base := base.(type) {
+	case *memio.LimitedBuffer:
+		if uint64(len(*base)) != bSize {
+			return nil, errors.New("invalid packed base size")
+		}
+		baseBuf = *base
+	default:
+		baseBuf := make(memio.LimitedBuffer, 0, bSize)
+		_, err := baseBuf.ReadFrom(base)
+		if err != nil {
+			return nil, fmt.Errorf("error reading base object: %w", err)
+		} else if len(baseBuf) != cap(baseBuf) {
+			return nil, errors.New("invalid packed base size")
+		}
 	}
-	patched := make(memio.LimitedBuffer, 1, b.ReadUintX()+1)
-	patched[0] = baseBuf[0]
-	baseBuf = baseBuf[1:]
+	patched := make(memio.LimitedBuffer, 0, b.ReadUintX())
 	for b.Err == nil {
 		instr := b.ReadUint8()
 		if instr&0x80 == 0 {
@@ -370,26 +338,60 @@ func (r *Repo) readPackOffset(p string, o int64) (io.ReadCloser, error) {
 	if b.Err != nil {
 		return nil, fmt.Errorf("error reading patch: %w", err)
 	}
+	if len(patched) != cap(patched) {
+		return nil, errors.New("failed to read complete patched object")
+	}
 	return &patched, nil
 }
 
-func (r *Repo) getObject(id string) (io.ReadCloser, error) {
+func (r *Repo) getObject(id string, want int) (io.ReadCloser, error) {
 	f, err := os.Open(filepath.Join(r.path, "objects", id[:2], id[2:]))
 	if os.IsNotExist(err) {
 		r.loadPacks.Do(r.loadPacksData)
 		if r.packsErr != nil {
 			err = r.packsErr
 		} else if p, ok := r.packObjects[id]; ok {
-			return r.readPackOffset(p.pack, p.offset)
+			return r.readPackOffset(p.pack, p.offset, want)
 		}
 	}
 	if err != nil {
 		return nil, fmt.Errorf("error opening object file (%s): %w", id, err)
 	}
+	close := true
+	defer func() {
+		if close {
+			f.Close()
+		}
+	}()
 	z, err := zlib.NewReader(f)
 	if err != nil {
 		return nil, fmt.Errorf("error decompressing object file (%s): %s", id, err)
 	}
+	header := objectHeaders[want]
+	buf := bufPool.Get().(*[21]byte)
+	defer bufPool.Put(buf)
+	if _, err := io.ReadFull(z, buf[:len(header)]); err != nil {
+		return nil, fmt.Errorf("error reading object header: %w", err)
+	}
+	if string(buf[:len(header)]) != header {
+		return nil, errors.New("wrong type")
+	}
+	size := false
+	for n := range buf {
+		if _, err := z.Read(buf[n : n+1]); err != nil {
+			return nil, fmt.Errorf("error reading object size: %w", err)
+		}
+		if buf[n] == 0 {
+			size = true
+			break
+		} else if buf[n] < '0' || buf[n] > '9' {
+			return nil, errors.New("invalid object size")
+		}
+	}
+	if !size {
+		return nil, errors.New("invalid object size")
+	}
+	close = false
 	return struct {
 		io.Reader
 		io.Closer
@@ -405,7 +407,7 @@ type Commit struct {
 }
 
 func (r *Repo) GetCommit(id string) (*Commit, error) {
-	o, err := r.getObject(id)
+	o, err := r.getObject(id, ObjectCommit)
 	if err != nil {
 		return nil, fmt.Errorf("error while opening commit object: %w", err)
 	}
@@ -417,28 +419,6 @@ func (r *Repo) GetCommit(id string) (*Commit, error) {
 		o.Close()
 		if err != nil {
 			return nil, err
-		}
-	}
-	if buf[0] == ObjectCommit {
-		buf = buf[1:]
-	} else {
-		if string(buf[:7]) != "commit " {
-			return nil, errors.New("not a commit")
-		}
-		buf = buf[7:]
-		p := bytes.IndexByte(buf, 0)
-		if p < 0 {
-			return nil, errors.New("invalid commit length")
-		}
-		l, err := strconv.ParseUint(string(buf[:p]), 10, 64)
-		if err != nil {
-			return nil, fmt.Errorf("error parsing commit size: %w", err)
-		}
-		buf = buf[p+1:]
-		if l == 0 {
-			return nil, errors.New("zero commit size")
-		} else if l != uint64(len(buf)) {
-			return nil, errors.New("invalid commit size")
 		}
 	}
 	c := new(Commit)
@@ -499,7 +479,7 @@ type TreeObject struct {
 }
 
 func (r *Repo) GetTree(id string) (Tree, error) {
-	o, err := r.getObject(id)
+	o, err := r.getObject(id, ObjectTree)
 	if err != nil {
 		return nil, fmt.Errorf("error while opening tree object: %w", err)
 	}
@@ -511,28 +491,6 @@ func (r *Repo) GetTree(id string) (Tree, error) {
 		o.Close()
 		if err != nil {
 			return nil, err
-		}
-	}
-	if buf[0] == ObjectTree {
-		buf = buf[1:]
-	} else {
-		if string(buf[:5]) != "tree " {
-			return nil, errors.New("not a tree")
-		}
-		buf = buf[5:]
-		p := bytes.IndexByte(buf, 0)
-		if p < 0 {
-			return nil, errors.New("invalid tree length")
-		}
-		l, err := strconv.ParseUint(string(buf[:p]), 10, 64)
-		if err != nil {
-			return nil, fmt.Errorf("error parsing tree size: %w", err)
-		}
-		buf = buf[p+1:]
-		if l == 0 {
-			return nil, errors.New("zero tree size")
-		} else if l != uint64(len(buf)) {
-			return nil, errors.New("invalid tree size")
 		}
 	}
 	var files Tree
