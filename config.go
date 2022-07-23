@@ -17,6 +17,7 @@ var config = struct {
 	PinClass       string   `json:"pinClass"`
 	RepoTemplate   string   `json:"repoTemplate"`
 	RepoDateFormat string   `json:"repoDateFormat"`
+	PrettyPrint    []string `json:"prettyPrint"`
 }{
 	ReposDir:  "./",
 	OutputDir: ".",
