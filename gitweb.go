@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"html"
@@ -35,6 +36,50 @@ func main() {
 	if err := buildIndex(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(3)
+	}
+}
+
+func getFileLastCommit(r *Repo, path []string) (*Commit, error) {
+	cid, err := r.GetLatestCommitID()
+	if err != nil {
+		return nil, fmt.Errorf("error reading last commit id: %w", err)
+	}
+	last, err := r.GetCommit(cid)
+	if err != nil {
+		return nil, fmt.Errorf("error reading commit: %w", err)
+	}
+	objID := last.Tree
+	for _, p := range path {
+		t, err := r.GetTree(objID)
+		if err != nil {
+			return nil, fmt.Errorf("error reading tree: %w", err)
+		}
+		nID, ok := t[p]
+		if !ok {
+			return nil, errors.New("invalid file")
+		}
+		objID = nID
+	}
+	for {
+		c, err := r.GetCommit(cid)
+		if err != nil {
+			return nil, fmt.Errorf("error reading commit: %w", err)
+		}
+		tID := c.Tree
+		for _, p := range path {
+			t, err := r.GetTree(tID)
+			if err != nil {
+				return nil, fmt.Errorf("error reading tree: %w", err)
+			}
+			nID, ok := t[p]
+			if !ok {
+				return last, nil
+			}
+			tID = nID
+		}
+		if tID != objID {
+			return last, nil
+		}
 	}
 }
 
