@@ -488,11 +488,7 @@ func (r *Repo) GetCommit(id string) (*Commit, error) {
 	return c, nil
 }
 
-type Tree []TreeObject
-
-type TreeObject struct {
-	Name, Object string
-}
+type Tree map[string]string
 
 func (r *Repo) GetTree(id string) (Tree, error) {
 	r.cacheMu.RLock()
@@ -518,7 +514,7 @@ func (r *Repo) GetTree(id string) (Tree, error) {
 			return nil, err
 		}
 	}
-	var files Tree
+	files := make(Tree)
 	for len(buf) > 0 {
 		p := bytes.IndexByte(buf, ' ')
 		if p == -1 {
@@ -535,10 +531,7 @@ func (r *Repo) GetTree(id string) (Tree, error) {
 			name += "/"
 		}
 		buf = buf[p+1:]
-		files = append(files, TreeObject{
-			Name:   name,
-			Object: fmt.Sprintf("%x", buf[:20]),
-		})
+		files[name] = fmt.Sprintf("%x", buf[:20])
 		buf = buf[20:]
 	}
 	r.cacheMu.Lock()
