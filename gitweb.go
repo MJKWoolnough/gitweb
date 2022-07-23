@@ -80,6 +80,7 @@ func getFileLastCommit(r *Repo, path []string) (*Commit, error) {
 		if tID != objID {
 			return last, nil
 		}
+		cid = c.Parent
 	}
 }
 
