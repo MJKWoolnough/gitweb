@@ -83,6 +83,39 @@ func getFileLastCommit(r *Repo, path []string) (*Commit, error) {
 	}
 }
 
+type files []string
+
+func (f files) Len() int {
+	return len(f)
+}
+
+func (f files) Less(i, j int) bool {
+	a := f[i]
+	b := f[j]
+	if a[len(a)-1] == '/' {
+		if b[len(b)-1] == '/' {
+			return a < b
+		}
+		return true
+	} else if b[len(b)-1] == '/' {
+		return false
+	}
+	return a < b
+}
+
+func (f files) Swap(i, j int) {
+	f[i], f[j] = f[j], f[i]
+}
+
+func sortedFiles(t Tree) files {
+	files := make(files, 0, len(t))
+	for f := range t {
+		files = append(files, f)
+	}
+	sort.Sort(files)
+	return files
+}
+
 func buildRepo(repo string) error {
 	return nil
 }
