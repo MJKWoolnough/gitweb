@@ -540,6 +540,14 @@ func (r *Repo) GetTree(id string) (Tree, error) {
 	return files, nil
 }
 
+func (r *Repo) GetBlob(id string) (io.ReadCloser, error) {
+	b, err := r.getObject(id, ObjectBlob)
+	if err != nil {
+		return nil, fmt.Errorf("error reading blob: %w")
+	}
+	return b, nil
+}
+
 func checkSHA(sha []byte) string {
 	for _, c := range sha {
 		if (c < '0' || c > '9') && (c < 'A' || c > 'Z') && (c < 'a' || c > 'z') {
