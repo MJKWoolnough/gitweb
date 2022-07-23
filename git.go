@@ -52,8 +52,9 @@ type Repo struct {
 	packsErr    error
 	packObjects map[string]packObject
 
-	cacheMu sync.RWMutex
-	cache   map[string]interface{}
+	cacheMu    sync.RWMutex
+	cache      map[string]interface{}
+	lastCommit string
 }
 
 func OpenRepo(path string) *Repo {
@@ -104,6 +105,12 @@ func (r *Repo) readHeadRef() (string, error) {
 }
 
 func (r *Repo) GetLatestCommitID() (string, error) {
+	r.cacheMu.RLock()
+	id := r.lastCommit
+	r.cacheMu.RUnlock()
+	if id != "" {
+		return id, nil
+	}
 	head, err := r.readHeadRef()
 	if err != nil {
 		return "", err
@@ -118,10 +125,13 @@ func (r *Repo) GetLatestCommitID() (string, error) {
 	if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) {
 		return "", fmt.Errorf("error while reading ref: %w", err)
 	}
-	id := checkSHA(buf[:n-1])
+	id = checkSHA(buf[:n-1])
 	if id == "" {
 		return "", errors.New("invalid id")
 	}
+	r.cacheMu.Lock()
+	r.lastCommit = id
+	r.cacheMu.Unlock()
 	return id, nil
 }
 
