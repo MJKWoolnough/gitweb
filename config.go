@@ -8,7 +8,7 @@ import (
 
 var config = struct {
 	ReposDir       string   `json:"reposDir"`
-	OutputDir      string   `json:"outpurDir"`
+	OutputDir      string   `json:"outputDir"`
 	Pinned         []string `json:"pinned"`
 	GitDir         string   `json:"gitDir"`
 	IndexFile      string   `json:"indexFile"`
