@@ -43,7 +43,7 @@ var (
 
 type packObject struct {
 	pack   string
-	offset int64
+	offset uint64
 }
 
 type Repo struct {
@@ -191,7 +191,7 @@ func (r *Repo) loadPacksData() {
 					} else {
 						r.packObjects[name] = packObject{
 							pack:   pack,
-							offset: int64(offset),
+							offset: uint64(offset),
 						}
 					}
 				}
@@ -200,7 +200,7 @@ func (r *Repo) loadPacksData() {
 					if name, ok := larger[i]; ok {
 						r.packObjects[name] = packObject{
 							pack:   pack,
-							offset: int64(offset),
+							offset: offset,
 						}
 					}
 				}
@@ -216,7 +216,7 @@ func (r *Repo) loadPacksData() {
 	}
 }
 
-func (r *Repo) readPackOffset(p string, o int64, want int) (io.ReadCloser, error) {
+func (r *Repo) readPackOffset(p string, o uint64, want int) (io.ReadCloser, error) {
 	pack, err := os.Open(filepath.Join(r.path, "objects", "pack", p))
 	if err != nil {
 		return nil, fmt.Errorf("error opening pack file: %w", err)
@@ -238,7 +238,7 @@ func (r *Repo) readPackOffset(p string, o int64, want int) (io.ReadCloser, error
 	} else if buf[0] != 0 || buf[1] != 0 || buf[2] != 0 || buf[3] != 2 {
 		return nil, fmt.Errorf("read unsupported pack version: %x", buf)
 	}
-	if _, err := pack.Seek(o, os.SEEK_SET); err != nil {
+	if _, err := pack.Seek(int64(o), os.SEEK_SET); err != nil {
 		return nil, fmt.Errorf("error seeking to object offset: %w", err)
 	}
 	if _, err := pack.Read(buf[:1]); err != nil {
@@ -270,14 +270,13 @@ func (r *Repo) readPackOffset(p string, o int64, want int) (io.ReadCloser, error
 			Closer: pack,
 		}, nil
 	case ObjectOffsetDelta:
-		buf[0] = 0x80
-		var baseOffset int64
-		for buf[0]&0x80 != 0 {
-			if _, err := pack.Read(buf[:1]); err != nil {
-				return nil, fmt.Errorf("error reading pack object size: %w", err)
-			}
-			baseOffset <<= 7
-			baseOffset |= int64(buf[0] & 0x7f)
+		ber := byteio.BigEndianReader{Reader: pack}
+		baseOffset, _, err := ber.ReadUintX()
+		if err != nil {
+			return nil, fmt.Errorf("error reading offset: %w", err)
+		}
+		if baseOffset >= o {
+			return nil, errors.New("invalid offset for OffsetDelta")
 		}
 		if base, err = r.readPackOffset(p, o-baseOffset, want); err != nil {
 			return nil, fmt.Errorf("error reading base object: %w", err)
