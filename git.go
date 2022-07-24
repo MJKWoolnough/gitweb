@@ -244,7 +244,7 @@ func (r *Repo) readPackOffset(p string, o int64, want int) (io.ReadCloser, error
 	if _, err := pack.Read(buf[:1]); err != nil {
 		return nil, fmt.Errorf("error reading pack object type: %w", err)
 	}
-	typ := (buf[0] >> 4) & 3
+	typ := (buf[0] >> 4) & 7
 	if int(typ) != want {
 		return nil, errors.New("wrong packed type")
 	}
