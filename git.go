@@ -314,7 +314,7 @@ func (r *Repo) readPackOffset(p string, o uint64, want int) (io.ReadCloser, erro
 		}
 		baseBuf = *base
 	default:
-		baseBuf := make(memio.LimitedBuffer, 0, bSize)
+		baseBuf = make(memio.LimitedBuffer, 0, bSize)
 		_, err := baseBuf.ReadFrom(base)
 		if err != nil {
 			return nil, fmt.Errorf("error reading base object: %w", err)
