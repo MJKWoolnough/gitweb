@@ -298,7 +298,14 @@ func (r *Repo) readPackOffset(p string, o uint64, want int) (io.ReadCloser, erro
 		return nil, fmt.Errorf("error starting to decompress object: %w", err)
 	}
 	b := byteio.StickyLittleEndianReader{Reader: bufio.NewReader(z)}
-	bSize := b.ReadUintX()
+	var bSize uint64
+	bs := byte(0x80)
+	shift = 0
+	for bs&0x80 != 0 {
+		bs = b.ReadUint8()
+		bSize |= uint64(bs&0x7f) << shift
+		shift += 7
+	}
 	var baseBuf memio.LimitedBuffer
 	switch base := base.(type) {
 	case *memio.LimitedBuffer:
@@ -315,7 +322,15 @@ func (r *Repo) readPackOffset(p string, o uint64, want int) (io.ReadCloser, erro
 			return nil, errors.New("invalid packed base size")
 		}
 	}
-	patched := make(memio.LimitedBuffer, 0, b.ReadUintX())
+	bs = 0x80
+	shift = 0
+	bSize = 0
+	for bs&0x80 != 0 {
+		bs = b.ReadUint8()
+		bSize |= uint64(bs&0x7f) << shift
+		shift += 7
+	}
+	patched := make(memio.LimitedBuffer, 0, bSize)
 	for b.Err == nil {
 		instr := b.ReadUint8()
 		if instr&0x80 == 0 {
