@@ -365,7 +365,7 @@ func (r *Repo) readPackOffset(p string, o uint64, want int) (io.ReadCloser, erro
 		}
 	}
 	if b.Err != nil {
-		return nil, fmt.Errorf("error reading patch: %w", err)
+		return nil, fmt.Errorf("error reading patch: %w", b.Err)
 	}
 	if len(patched) != cap(patched) {
 		return nil, errors.New("failed to read complete patched object")
