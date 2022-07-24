@@ -441,7 +441,7 @@ func (r *Repo) GetCommit(id string) (*Commit, error) {
 		buf, err = io.ReadAll(o)
 		o.Close()
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error reading commit: %w", err)
 		}
 	}
 	c := new(Commit)
