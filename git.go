@@ -245,7 +245,7 @@ func (r *Repo) readPackOffset(p string, o int64, want int) (io.ReadCloser, error
 		return nil, fmt.Errorf("error reading pack object type: %w", err)
 	}
 	typ := (buf[0] >> 4) & 7
-	if int(typ) != want {
+	if int(typ) != want && typ != ObjectRefDelta && typ != ObjectOffsetDelta {
 		return nil, errors.New("wrong packed type")
 	}
 	size := int64(buf[0] & 15)
