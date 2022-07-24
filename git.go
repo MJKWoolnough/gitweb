@@ -344,16 +344,16 @@ func (r *Repo) readPackOffset(p string, o uint64, want int) (io.ReadCloser, erro
 		} else {
 			var offset, size uint32
 			for i := 0; i < 4; i++ {
-				instr <<= 1
-				if instr&0x80 == 1 {
+				if instr&1 == 1 {
 					offset |= uint32(b.ReadUint8()) << (i * 8)
 				}
+				instr >>= 1
 			}
 			for i := 0; i < 3; i++ {
-				instr <<= 1
-				if instr&0x80 == 1 {
+				if instr&1 == 1 {
 					size |= uint32(b.ReadUint8()) << (i * 8)
 				}
+				instr >>= 1
 			}
 			if size == 0 {
 				size = 0x10000
