@@ -574,6 +574,8 @@ func (r *Repo) GetTree(id string) (Tree, error) {
 		name := string(buf[:p])
 		if string(mode) == "40000" {
 			name += "/"
+		} else if string(mode) == "120000" {
+			name = "/" + name
 		}
 		buf = buf[p+1:]
 		files[name] = fmt.Sprintf("%x", buf[:20])
