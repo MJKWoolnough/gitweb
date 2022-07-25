@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"html"
+	"io"
 	"io/fs"
 	"os"
 	"os/user"
@@ -81,6 +82,7 @@ func getFileLastCommit(r *Repo, path []string) (*Commit, error) {
 			return last, nil
 		}
 		cid = c.Parent
+		last = c
 	}
 }
 
@@ -117,7 +119,49 @@ func sortedFiles(t Tree) files {
 	return files
 }
 
+func printDir(w io.Writer, r *Repo, tree Tree, path []string) error {
+	indent := make([]byte, len(path)+1)
+	for n := range indent {
+		indent[n] = '	'
+	}
+	indent[0] = '\n'
+	for _, f := range sortedFiles(tree) {
+		w.Write(indent)
+		io.WriteString(w, f)
+		if f[len(f)-1] == '/' {
+			nt, err := r.GetTree(tree[f])
+			if err != nil {
+				return fmt.Errorf("error reading tree: %w", err)
+			}
+			printDir(w, r, nt, append(path, f))
+		} else {
+			c, err := getFileLastCommit(r, append(path, f))
+			if err != nil {
+				return fmt.Errorf("error reading files last commit: %w", err)
+			}
+			fmt.Fprintf(w, ": %s %s", c.Time, c.Msg)
+		}
+	}
+	return nil
+}
+
 func buildRepo(repo string) error {
+	r := OpenRepo(filepath.Join(config.ReposDir, repo, config.GitDir))
+	cid, err := r.GetLatestCommitID()
+	if err != nil {
+		return fmt.Errorf("error reading last commit id: %w", err)
+	}
+	latest, err := r.GetCommit(cid)
+	if err != nil {
+		return fmt.Errorf("error reading commit: %w", err)
+	}
+	tree, err := r.GetTree(latest.Tree)
+	if err != nil {
+		return fmt.Errorf("error reading tree: %w", err)
+	}
+	if err := printDir(os.Stdout, r, tree, []string{}); err != nil {
+		return err
+	}
 	return nil
 }
 
