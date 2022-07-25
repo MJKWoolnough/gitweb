@@ -341,7 +341,7 @@ func (r *Repo) readPackOffset(p string, o uint64, want int) (io.ReadCloser, erro
 			if l == 0 {
 				break
 			}
-			if _, err := io.CopyN(&patched, z, int64(l)); err != nil {
+			if _, err := io.CopyN(&patched, &b, int64(l)); err != nil {
 				return nil, fmt.Errorf("error copying data from patch: %w", err)
 			}
 		} else {
