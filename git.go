@@ -39,7 +39,33 @@ var (
 			return new([21]byte)
 		},
 	}
+	zHeader = memio.Buffer{8, 29}
+	zPool   = sync.Pool{
+		New: func() interface{} {
+			h := zHeader
+			z, _ := zlib.NewReader(&h)
+			return z
+		},
+	}
 )
+
+type zReadCloser readCloser
+
+func (z *zReadCloser) Close() error {
+	zPool.Put(z.Reader)
+	return z.Closer.Close()
+}
+
+func decompress(r io.ReadCloser) (io.ReadCloser, error) {
+	z := zPool.Get().(io.ReadCloser)
+	if err := z.(zlib.Resetter).Reset(r, nil); err != nil {
+		return nil, err
+	}
+	return &zReadCloser{
+		Reader: z,
+		Closer: r,
+	}, nil
+}
 
 type packObject struct {
 	pack   string
@@ -260,15 +286,12 @@ func (r *Repo) readPackOffset(p string, o uint64, want int) (io.ReadCloser, erro
 	var base io.ReadCloser
 	switch typ {
 	case ObjectCommit, ObjectTree, ObjectBlob:
-		z, err := zlib.NewReader(pack)
+		z, err := decompress(pack)
 		if err != nil {
 			return nil, fmt.Errorf("error starting to decompress object: %w", err)
 		}
 		close = false
-		return &readCloser{
-			Reader: z,
-			Closer: pack,
-		}, nil
+		return z, nil
 	case ObjectOffsetDelta:
 		ber := byteio.BigEndianReader{Reader: pack}
 		baseOffset, _, err := ber.ReadUintX()
@@ -293,10 +316,12 @@ func (r *Repo) readPackOffset(p string, o uint64, want int) (io.ReadCloser, erro
 	default:
 		return nil, errors.New("invalid pack type")
 	}
-	z, err := zlib.NewReader(pack)
+	z, err := decompress(pack)
 	if err != nil {
 		return nil, fmt.Errorf("error starting to decompress object: %w", err)
 	}
+	close = false
+	defer z.Close()
 	b := byteio.StickyLittleEndianReader{Reader: bufio.NewReader(z)}
 	var bSize uint64
 	bs := byte(0x80)
@@ -386,16 +411,17 @@ func (r *Repo) getObject(id string, want int) (io.ReadCloser, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error opening object file (%s): %w", id, err)
 	}
+	z, err := decompress(f)
+	if err != nil {
+		f.Close()
+		return nil, fmt.Errorf("error decompressing object file (%s): %s", id, err)
+	}
 	close := true
 	defer func() {
 		if close {
-			f.Close()
+			z.Close()
 		}
 	}()
-	z, err := zlib.NewReader(f)
-	if err != nil {
-		return nil, fmt.Errorf("error decompressing object file (%s): %s", id, err)
-	}
 	header := objectHeaders[want]
 	buf := bufPool.Get().(*[21]byte)
 	defer bufPool.Put(buf)
@@ -421,13 +447,7 @@ func (r *Repo) getObject(id string, want int) (io.ReadCloser, error) {
 		return nil, errors.New("invalid object size")
 	}
 	close = false
-	return struct {
-		io.Reader
-		io.Closer
-	}{
-		Reader: z,
-		Closer: f,
-	}, nil
+	return z, nil
 }
 
 type Commit struct {
