@@ -18,10 +18,10 @@ import (
 )
 
 const (
-	ObjectCommit      = 1
-	ObjectTree        = 2
-	ObjectBlob        = 3
-	ObjectTag         = 4
+	ObjectCommit = 1
+	ObjectTree   = 2
+	ObjectBlob   = 3
+	// ObjectTag = 4
 	ObjectOffsetDelta = 6
 	ObjectRefDelta    = 7
 )
