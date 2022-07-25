@@ -331,7 +331,10 @@ func (r *Repo) readPackOffset(p string, o uint64, want int) (io.ReadCloser, erro
 		shift += 7
 	}
 	patched := make(memio.LimitedBuffer, 0, bSize)
-	for b.Err == nil {
+	for {
+		if b.Err != nil {
+			return nil, fmt.Errorf("error reading patch: %w", b.Err)
+		}
 		instr := b.ReadUint8()
 		if instr&0x80 == 0 {
 			l := instr & 0x7f
@@ -363,9 +366,6 @@ func (r *Repo) readPackOffset(p string, o uint64, want int) (io.ReadCloser, erro
 			}
 			patched = append(patched, baseBuf[offset:offset+size]...)
 		}
-	}
-	if b.Err != nil {
-		return nil, fmt.Errorf("error reading patch: %w", b.Err)
 	}
 	if len(patched) != cap(patched) {
 		return nil, errors.New("failed to read complete patched object")
