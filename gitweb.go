@@ -4,7 +4,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"html"
 	"io"
 	"io/fs"
 	"os"
@@ -165,18 +164,20 @@ func buildRepo(repo string) error {
 	return nil
 }
 
-type repo struct {
-	name, desc, lastCommit string
-	lastCommitTime         time.Time
-	pin                    int
+type RepoData struct {
+	Name, Desc, LastCommit string
+	LastCommitTime         time.Time
+	Pin                    int
 }
+
+type indexData struct{}
 
 func buildIndex() error {
 	dir, err := os.ReadDir(config.ReposDir)
 	if err != nil {
 		return fmt.Errorf("error reading repos dir: %w", err)
 	}
-	repos := make([]repo, 0, len(dir))
+	repos := make([]RepoData, 0, len(dir))
 	for _, r := range dir {
 		if r.Type()&fs.ModeDir != 0 {
 			name := r.Name()
@@ -194,47 +195,34 @@ func buildIndex() error {
 						break
 					}
 				}
-				repos = append(repos, repo{
-					name:           name,
-					desc:           rp.GetDescription(),
-					lastCommit:     c.Msg,
-					lastCommitTime: c.Time,
-					pin:            pinPos,
+				repos = append(repos, RepoData{
+					Name:           name,
+					Desc:           rp.GetDescription(),
+					LastCommit:     c.Msg,
+					LastCommitTime: c.Time,
+					Pin:            pinPos,
 				})
 			}
 		}
 	}
+	sort.Slice(repos, func(i, j int) bool {
+		ir := repos[i]
+		jr := repos[j]
+		if ir.Pin == -1 && jr.Pin == -1 {
+			return ir.LastCommitTime.After(jr.LastCommitTime)
+		} else if ir.Pin == -1 {
+			return false
+		} else if jr.Pin == -1 {
+			return true
+		}
+		return ir.Pin < jr.Pin
+	})
 	f, err := os.Create(filepath.Join(config.OutputDir, config.IndexFile))
 	if err != nil {
 		return fmt.Errorf("error creating index: %w", err)
 	}
-	defer f.Close()
-	if _, err := f.WriteString(config.IndexHead); err != nil {
-		return fmt.Errorf("error writing index header: %w", err)
-	}
-	sort.Slice(repos, func(i, j int) bool {
-		ir := repos[i]
-		jr := repos[j]
-		if ir.pin == -1 && jr.pin == -1 {
-			return ir.lastCommitTime.After(jr.lastCommitTime)
-		} else if ir.pin == -1 {
-			return false
-		} else if jr.pin == -1 {
-			return true
-		}
-		return ir.pin < jr.pin
-	})
-	for _, r := range repos {
-		pinned := ""
-		if r.pin != -1 {
-			pinned = config.PinClass
-		}
-		if _, err := fmt.Fprintf(f, config.RepoTemplate, pinned, "/"+r.name+"/", html.EscapeString(r.name), html.EscapeString(r.desc), r.lastCommitTime.Format(config.RepoDateFormat), html.EscapeString(r.lastCommit)); err != nil {
-			return fmt.Errorf("error while writing index: %w", err)
-		}
-	}
-	if _, err := f.WriteString(config.IndexFoot); err != nil {
-		return fmt.Errorf("error writing index footer: %w", err)
+	if err := config.indexTemplate.Execute(f, repos); err != nil {
+		fmt.Errorf("error processing template: %w", err)
 	}
 	return nil
 }
