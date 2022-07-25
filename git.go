@@ -260,7 +260,7 @@ func (r *Repo) readPackOffset(p string, o uint64, want int) (io.ReadCloser, erro
 	var base io.ReadCloser
 	switch typ {
 	case ObjectCommit, ObjectTree, ObjectBlob:
-		z, err := zlib.NewReader(io.LimitReader(pack, size))
+		z, err := zlib.NewReader(pack)
 		if err != nil {
 			return nil, fmt.Errorf("error starting to decompress object: %w", err)
 		}
@@ -293,7 +293,7 @@ func (r *Repo) readPackOffset(p string, o uint64, want int) (io.ReadCloser, erro
 	default:
 		return nil, errors.New("invalid pack type")
 	}
-	z, err := zlib.NewReader(io.LimitReader(pack, size))
+	z, err := zlib.NewReader(pack)
 	if err != nil {
 		return nil, fmt.Errorf("error starting to decompress object: %w", err)
 	}
