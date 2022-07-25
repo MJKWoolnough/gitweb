@@ -3,47 +3,25 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"html/template"
 	"os"
 )
 
 var config = struct {
-	ReposDir       string   `json:"reposDir"`
-	OutputDir      string   `json:"outputDir"`
-	Pinned         []string `json:"pinned"`
-	GitDir         string   `json:"gitDir"`
-	IndexFile      string   `json:"indexFile"`
-	IndexHead      string   `json:"indexHead"`
-	IndexFoot      string   `json:"indexFoot"`
-	PinClass       string   `json:"pinClass"`
-	RepoTemplate   string   `json:"repoTemplate"`
-	RepoDateFormat string   `json:"repoDateFormat"`
-	PrettyPrint    []string `json:"prettyPrint"`
+	ReposDir                    string   `json:"reposDir"`
+	OutputDir                   string   `json:"outputDir"`
+	Pinned                      []string `json:"pinned"`
+	GitDir                      string   `json:"gitDir"`
+	IndexFile                   string   `json:"indexFile"`
+	IndexTemplate               string   `json:"indexTemplate"`
+	RepoTemplate                string   `json:"repoTemplate"`
+	PrettyPrint                 []string `json:"prettyPrint"`
+	indexTemplate, repoTemplate *template.Template
 }{
 	ReposDir:  "./",
 	OutputDir: ".",
 	GitDir:    ".git",
 	IndexFile: "index.html",
-	IndexHead: `<!DOCTYPE html>
-<html lang="en">
-        <head>
-                <title>Repositories</title>
-                <link type="text/css" rel="stylesheet" href="/style/repos.css">
-        </head>
-        <body>
-                <h1>Repositories</h1>
-                <ul>`,
-	PinClass: " class=\"pinned\"",
-	RepoTemplate: `
-                        <li%s>
-                                <a href=%q>%s</a>
-                                <span>%s</span>
-                                <span>Latest Commit:</span><span>%s: %s</span>
-                        </li>`,
-	RepoDateFormat: "2006/01/02 15:04:05",
-	IndexFoot: `
-                </ul>
-        </body>
-</html>`,
 }
 
 func readConfig(configFile string) error {
@@ -57,6 +35,12 @@ func readConfig(configFile string) error {
 	defer f.Close()
 	if err := json.NewDecoder(f).Decode(&config); err != nil {
 		return fmt.Errorf("error parsing config file: %w", err)
+	}
+	if config.indexTemplate, err = template.New("index").Parse(config.IndexTemplate); err != nil {
+		return fmt.Errorf("error parsing index template: %w", err)
+	}
+	if config.repoTemplate, err = template.New("repo").Parse(config.RepoTemplate); err != nil {
+		return fmt.Errorf("error parsing repo template: %w", err)
 	}
 	return nil
 }
