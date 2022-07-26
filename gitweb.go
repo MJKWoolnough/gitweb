@@ -162,6 +162,7 @@ func parseTree(name string, r *Repo, tree Tree, p []string) (*Dir, error) {
 			}
 			d.ID = tree[f]
 			dir.Dirs[f[:len(f)-1]] = d
+			delete(fileMap, f[:len(f)-1])
 		} else {
 			fpath := append(p, f)
 			c, err := getFileLastCommit(r, fpath)
@@ -209,10 +210,15 @@ func parseTree(name string, r *Repo, tree Tree, p []string) (*Dir, error) {
 						return nil, fmt.Errorf("error setting file time: %w", err)
 					}
 					file.Size = n
-					fmt.Printf("Wrote %s\n", outpath)
 				}
 			}
 			dir.Files[name] = file
+			delete(fileMap, name)
+		}
+	}
+	for f := range fileMap {
+		if err := os.Remove(filepath.Join(basepath, f)); err != nil {
+			return nil, fmt.Errorf("error removing file: %w", err)
 		}
 	}
 	return dir, nil
