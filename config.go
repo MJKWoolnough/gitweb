@@ -5,24 +5,41 @@ import (
 	"fmt"
 	"html/template"
 	"os"
+	"strings"
 )
 
-var config = struct {
-	ReposDir                    string   `json:"reposDir"`
-	OutputDir                   string   `json:"outputDir"`
-	Pinned                      []string `json:"pinned"`
-	GitDir                      string   `json:"gitDir"`
-	IndexFile                   string   `json:"indexFile"`
-	IndexTemplate               string   `json:"indexTemplate"`
-	RepoTemplate                string   `json:"repoTemplate"`
-	PrettyPrint                 []string `json:"prettyPrint"`
-	indexTemplate, repoTemplate *template.Template
-}{
-	ReposDir:  "./",
-	OutputDir: ".",
-	GitDir:    ".git",
-	IndexFile: "index.html",
-}
+var (
+	fMap = template.FuncMap{
+		"add": func(a, b int) int {
+			return a + b
+		},
+		"mul": func(a, b int) int {
+			return a * b
+		},
+		"sub": func(a, b int) int {
+			return a - b
+		},
+		"indent": func(n int) string {
+			return strings.Repeat("	", n)
+		},
+	}
+	config = struct {
+		ReposDir                    string   `json:"reposDir"`
+		OutputDir                   string   `json:"outputDir"`
+		Pinned                      []string `json:"pinned"`
+		GitDir                      string   `json:"gitDir"`
+		IndexFile                   string   `json:"indexFile"`
+		IndexTemplate               string   `json:"indexTemplate"`
+		RepoTemplate                string   `json:"repoTemplate"`
+		PrettyPrint                 []string `json:"prettyPrint"`
+		indexTemplate, repoTemplate *template.Template
+	}{
+		ReposDir:  "./",
+		OutputDir: ".",
+		GitDir:    ".git",
+		IndexFile: "index.html",
+	}
+)
 
 func readConfig(configFile string) error {
 	f, err := os.Open(configFile)
@@ -36,10 +53,10 @@ func readConfig(configFile string) error {
 	if err := json.NewDecoder(f).Decode(&config); err != nil {
 		return fmt.Errorf("error parsing config file: %w", err)
 	}
-	if config.indexTemplate, err = template.New("index").Parse(config.IndexTemplate); err != nil {
+	if config.indexTemplate, err = template.New("index").Funcs(fMap).Parse(config.IndexTemplate); err != nil {
 		return fmt.Errorf("error parsing index template: %w", err)
 	}
-	if config.repoTemplate, err = template.New("repo").Parse(config.RepoTemplate); err != nil {
+	if config.repoTemplate, err = template.New("repo").Funcs(fMap).Parse(config.RepoTemplate); err != nil {
 		return fmt.Errorf("error parsing repo template: %w", err)
 	}
 	return nil
