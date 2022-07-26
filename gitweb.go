@@ -120,6 +120,7 @@ func sortedFiles(t Tree) files {
 
 type Dir struct {
 	ID    string
+	Path  []string
 	Dirs  map[string]*Dir
 	Files map[string]*File
 }
@@ -134,6 +135,7 @@ func parseTree(r *Repo, tree Tree, p []string) (*Dir, error) {
 	dir := &Dir{
 		Dirs:  make(map[string]*Dir),
 		Files: make(map[string]*File),
+		Path:  append(make([]string, 0, len(p)), p...),
 	}
 	for _, f := range sortedFiles(tree) {
 		if f[len(f)-1] == '/' {
