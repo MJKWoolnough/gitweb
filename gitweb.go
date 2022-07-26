@@ -148,16 +148,17 @@ func parseTree(r *Repo, tree Tree, p []string) (*Dir, error) {
 			d.ID = tree[f]
 			dir.Dirs[f[:len(f)-1]] = d
 		} else {
+			name := f
 			if f[0] == '/' {
 				// Symlink
-				f = f[1:]
+				name = f[1:]
 			}
 			fpath := append(p, f)
 			c, err := getFileLastCommit(r, fpath)
 			if err != nil {
 				return nil, fmt.Errorf("error reading files last commit: %w", err)
 			}
-			dir.Files[f] = &File{
+			dir.Files[name] = &File{
 				Path:   path.Join(fpath...),
 				Commit: c,
 			}
