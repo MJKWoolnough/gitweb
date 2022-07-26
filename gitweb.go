@@ -315,7 +315,7 @@ func buildIndex() error {
 		return fmt.Errorf("error creating index: %w", err)
 	}
 	if err := config.indexTemplate.Execute(f, repos); err != nil {
-		fmt.Errorf("error processing template: %w", err)
+		return fmt.Errorf("error processing template: %w", err)
 	}
 	return nil
 }
