@@ -4,6 +4,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"os/user"
@@ -128,10 +129,22 @@ type Dir struct {
 type File struct {
 	Path   string
 	Commit *Commit
-	Size   uint64
+	Size   int64
 }
 
-func parseTree(r *Repo, tree Tree, p []string) (*Dir, error) {
+func parseTree(name string, r *Repo, tree Tree, p []string) (*Dir, error) {
+	basepath := filepath.Join(append(append(make([]string, len(p)+3), config.OutputDir, name, "files"), p...)...)
+	if err := os.MkdirAll(basepath, 0o755); err != nil {
+		return nil, fmt.Errorf("error creating directories: %w", err)
+	}
+	files, err := os.ReadDir(basepath)
+	if err != nil {
+		return nil, fmt.Errorf("error reading file directory: %w", err)
+	}
+	fileMap := make(map[string]struct{}, len(files))
+	for _, file := range files {
+		fileMap[file.Name()] = struct{}{}
+	}
 	dir := &Dir{
 		Dirs:  make(map[string]*Dir),
 		Files: make(map[string]*File),
@@ -143,27 +156,63 @@ func parseTree(r *Repo, tree Tree, p []string) (*Dir, error) {
 			if err != nil {
 				return nil, fmt.Errorf("error reading tree: %w", err)
 			}
-			d, err := parseTree(r, nt, append(p, f))
+			d, err := parseTree(name, r, nt, append(p, f))
 			if err != nil {
 				return nil, fmt.Errorf("error parsing dir: %w", err)
 			}
 			d.ID = tree[f]
 			dir.Dirs[f[:len(f)-1]] = d
 		} else {
-			name := f
-			if f[0] == '/' {
-				// Symlink
-				name = f[1:]
-			}
 			fpath := append(p, f)
 			c, err := getFileLastCommit(r, fpath)
 			if err != nil {
 				return nil, fmt.Errorf("error reading files last commit: %w", err)
 			}
-			dir.Files[name] = &File{
+			name := f
+			file := &File{
 				Path:   path.Join(fpath...),
 				Commit: c,
 			}
+			if f[0] == '/' {
+				// Symlink
+				name = f[1:]
+			} else {
+				output := true
+				outpath := filepath.Join(basepath, name)
+				if _, ok := fileMap[name]; ok {
+					fi, err := os.Stat(outpath)
+					if err != nil {
+						return nil, fmt.Errorf("error while stat'ing file: %w", err)
+					}
+					if fi.ModTime().Equal(c.Time) {
+						output = false
+						file.Size = fi.Size()
+					}
+				}
+				if output {
+					b, err := r.GetBlob(tree[f])
+					if err != nil {
+						return nil, fmt.Errorf("error getting file data: %w", err)
+					}
+					o, err := os.Create(outpath)
+					if err != nil {
+						return nil, fmt.Errorf("error creating data file: %w", err)
+					}
+					n, err := io.Copy(o, b)
+					if err != nil {
+						return nil, fmt.Errorf("error writing file data: %w", err)
+					}
+					if err := o.Close(); err != nil {
+						return nil, fmt.Errorf("error closing file: %w", err)
+					}
+					if err := os.Chtimes(outpath, c.Time, c.Time); err != nil {
+						return nil, fmt.Errorf("error setting file time: %w", err)
+					}
+					file.Size = n
+					fmt.Printf("Wrote %s\n", outpath)
+				}
+			}
+			dir.Files[name] = file
 		}
 	}
 	return dir, nil
@@ -188,7 +237,7 @@ func buildRepo(repo string) error {
 	if err != nil {
 		return fmt.Errorf("error reading tree: %w", err)
 	}
-	d, err := parseTree(r, tree, []string{})
+	d, err := parseTree(repo, r, tree, []string{})
 	if err != nil {
 		return err
 	}
