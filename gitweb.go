@@ -190,11 +190,13 @@ func buildRepo(repo string) error {
 	if err != nil {
 		return err
 	}
-	config.repoTemplate.Execute(os.Stdout, RepoInfo{
+	if err := config.repoTemplate.Execute(os.Stdout, RepoInfo{
 		Name: repo,
 		Desc: r.GetDescription(),
 		Root: d,
-	})
+	}); err != nil {
+		return fmt.Errorf("error processing repo template: %w", err)
+	}
 	return nil
 }
 
