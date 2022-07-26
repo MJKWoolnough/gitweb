@@ -4,10 +4,10 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"io"
 	"io/fs"
 	"os"
 	"os/user"
+	"path"
 	"path/filepath"
 	"sort"
 	"time"
@@ -118,30 +118,57 @@ func sortedFiles(t Tree) files {
 	return files
 }
 
-func printDir(w io.Writer, r *Repo, tree Tree, path []string) error {
-	indent := make([]byte, len(path)+1)
-	for n := range indent {
-		indent[n] = '	'
+type Dir struct {
+	ID    string
+	Dirs  map[string]*Dir
+	Files map[string]*File
+}
+
+type File struct {
+	Path   string
+	Commit *Commit
+	Size   uint64
+}
+
+func parseTree(r *Repo, tree Tree, p []string) (*Dir, error) {
+	dir := &Dir{
+		Dirs:  make(map[string]*Dir),
+		Files: make(map[string]*File),
 	}
-	indent[0] = '\n'
 	for _, f := range sortedFiles(tree) {
-		w.Write(indent)
-		io.WriteString(w, f)
 		if f[len(f)-1] == '/' {
 			nt, err := r.GetTree(tree[f])
 			if err != nil {
-				return fmt.Errorf("error reading tree: %w", err)
+				return nil, fmt.Errorf("error reading tree: %w", err)
 			}
-			printDir(w, r, nt, append(path, f))
-		} else {
-			c, err := getFileLastCommit(r, append(path, f))
+			d, err := parseTree(r, nt, append(p, f))
 			if err != nil {
-				return fmt.Errorf("error reading files last commit: %w", err)
+				return nil, fmt.Errorf("error parsing dir: %w", err)
 			}
-			fmt.Fprintf(w, ": %s %s", c.Time, c.Msg)
+			d.ID = tree[f]
+			dir.Dirs[f[:len(f)-1]] = d
+		} else {
+			if f[0] == '/' {
+				// Symlink
+				f = f[1:]
+			}
+			fpath := append(p, f)
+			c, err := getFileLastCommit(r, fpath)
+			if err != nil {
+				return nil, fmt.Errorf("error reading files last commit: %w", err)
+			}
+			dir.Files[f] = &File{
+				Path:   path.Join(fpath...),
+				Commit: c,
+			}
 		}
 	}
-	return nil
+	return dir, nil
+}
+
+type RepoInfo struct {
+	Name, Desc string
+	Root       *Dir
 }
 
 func buildRepo(repo string) error {
@@ -158,9 +185,15 @@ func buildRepo(repo string) error {
 	if err != nil {
 		return fmt.Errorf("error reading tree: %w", err)
 	}
-	if err := printDir(os.Stdout, r, tree, []string{}); err != nil {
+	d, err := parseTree(r, tree, []string{})
+	if err != nil {
 		return err
 	}
+	config.repoTemplate.Execute(os.Stdout, RepoInfo{
+		Name: repo,
+		Desc: r.GetDescription(),
+		Root: d,
+	})
 	return nil
 }
 
