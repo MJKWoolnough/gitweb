@@ -322,7 +322,7 @@ func (r *Repo) readPackOffset(p string, o uint64, want int) (io.ReadCloser, erro
 	}
 	close = false
 	defer z.Close()
-	b := byteio.StickyLittleEndianReader{Reader: bufio.NewReader(z)}
+	b := byteio.StickyLittleEndianReader{Reader: z}
 	var bSize uint64
 	bs := byte(0x80)
 	shift = 0
