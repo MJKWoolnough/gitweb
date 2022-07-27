@@ -127,10 +127,9 @@ type Dir struct {
 }
 
 type File struct {
-	Path   string
-	Commit *Commit
-	Size   int64
-	Link   string
+	Path, Link, Ext string
+	Commit          *Commit
+	Size            int64
 }
 
 type Discard struct {
@@ -183,6 +182,7 @@ func parseTree(name string, r *Repo, tree Tree, p []string) (*Dir, error) {
 			name := f
 			file := &File{
 				Path:   path.Join(fpath...),
+				Ext:    filepath.Ext(name),
 				Commit: c,
 			}
 			if f[0] == '/' {
@@ -222,7 +222,7 @@ func parseTree(name string, r *Repo, tree Tree, p []string) (*Dir, error) {
 					if err != nil {
 						return nil, fmt.Errorf("error creating data file: %w", err)
 					}
-					if p, ok := config.prettyMap[filepath.Ext(name)]; ok {
+					if p, ok := config.prettyMap[file.Ext]; ok {
 						printer = p
 					}
 				}
