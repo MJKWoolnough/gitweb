@@ -44,7 +44,9 @@ var (
 		New: func() interface{} {
 			h := zHeader
 			z, _ := zlib.NewReader(&h)
-			return z
+			return &zReadCloser{
+				Reader: z,
+			}
 		},
 	}
 )
@@ -52,19 +54,19 @@ var (
 type zReadCloser readCloser
 
 func (z *zReadCloser) Close() error {
-	zPool.Put(z.Reader)
-	return z.Closer.Close()
+	err := z.Closer.Close()
+	z.Closer = nil
+	zPool.Put(z)
+	return err
 }
 
 func decompress(r io.ReadCloser) (io.ReadCloser, error) {
-	z := zPool.Get().(io.ReadCloser)
-	if err := z.(zlib.Resetter).Reset(r, nil); err != nil {
+	z := zPool.Get().(*zReadCloser)
+	if err := z.Reader.(zlib.Resetter).Reset(r, nil); err != nil {
 		return nil, err
 	}
-	return &zReadCloser{
-		Reader: z,
-		Closer: r,
-	}, nil
+	z.Closer = r
+	return z, nil
 }
 
 type packObject struct {
