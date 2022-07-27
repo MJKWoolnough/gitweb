@@ -133,6 +133,16 @@ type File struct {
 	Link   string
 }
 
+type Discard struct {
+	io.Writer
+}
+
+func (Discard) Close() error {
+	return nil
+}
+
+var discard = Discard{Writer: io.Discard}
+
 func parseTree(name string, r *Repo, tree Tree, p []string) (*Dir, error) {
 	basepath := filepath.Join(append(append(make([]string, len(p)+3), config.OutputDir, name, "files"), p...)...)
 	if err := os.MkdirAll(basepath, 0o755); err != nil {
@@ -183,6 +193,7 @@ func parseTree(name string, r *Repo, tree Tree, p []string) (*Dir, error) {
 				}
 				d, err := io.ReadAll(b)
 				if err != nil {
+					b.Close()
 					return nil, fmt.Errorf("error reading symlink data: %w", err)
 				}
 				b.Close()
@@ -191,6 +202,7 @@ func parseTree(name string, r *Repo, tree Tree, p []string) (*Dir, error) {
 				output := true
 				outpath := filepath.Join(basepath, name)
 				b, err := r.GetBlob(tree[f])
+				var o io.WriteCloser
 				if err != nil {
 					return nil, fmt.Errorf("error getting file data: %w", err)
 				}
@@ -201,22 +213,23 @@ func parseTree(name string, r *Repo, tree Tree, p []string) (*Dir, error) {
 					}
 					if fi.ModTime().Equal(c.Time) {
 						output = false
-						if file.Size, err = io.Copy(io.Discard, b); err != nil {
-							return nil, fmt.Errorf("error getting blob size: %w", err)
-						}
+						o = discard
 					}
 				}
 				if output {
-					o, err := os.Create(outpath)
+					o, err = os.Create(outpath)
 					if err != nil {
 						return nil, fmt.Errorf("error creating data file: %w", err)
 					}
-					if file.Size, err = io.Copy(o, b); err != nil {
-						return nil, fmt.Errorf("error writing file data: %w", err)
-					}
-					if err := o.Close(); err != nil {
-						return nil, fmt.Errorf("error closing file: %w", err)
-					}
+				}
+				if file.Size, err = io.Copy(o, b); err != nil {
+					o.Close()
+					return nil, fmt.Errorf("error writing file data: %w", err)
+				}
+				if err := o.Close(); err != nil {
+					return nil, fmt.Errorf("error closing file: %w", err)
+				}
+				if output {
 					if err := os.Chtimes(outpath, c.Time, c.Time); err != nil {
 						return nil, fmt.Errorf("error setting file time: %w", err)
 					}
