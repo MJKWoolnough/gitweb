@@ -180,6 +180,10 @@ func parseTree(name string, r *Repo, tree Tree, p []string) (*Dir, error) {
 			} else {
 				output := true
 				outpath := filepath.Join(basepath, name)
+				b, err := r.GetBlob(tree[f])
+				if err != nil {
+					return nil, fmt.Errorf("error getting file data: %w", err)
+				}
 				if _, ok := fileMap[name]; ok {
 					fi, err := os.Stat(outpath)
 					if err != nil {
@@ -187,20 +191,17 @@ func parseTree(name string, r *Repo, tree Tree, p []string) (*Dir, error) {
 					}
 					if fi.ModTime().Equal(c.Time) {
 						output = false
-						file.Size = fi.Size()
+						if file.Size, err = io.Copy(io.Discard, b); err != nil {
+							return nil, fmt.Errorf("error getting blob size: %w", err)
+						}
 					}
 				}
 				if output {
-					b, err := r.GetBlob(tree[f])
-					if err != nil {
-						return nil, fmt.Errorf("error getting file data: %w", err)
-					}
 					o, err := os.Create(outpath)
 					if err != nil {
 						return nil, fmt.Errorf("error creating data file: %w", err)
 					}
-					n, err := io.Copy(o, b)
-					if err != nil {
+					if file.Size, err = io.Copy(o, b); err != nil {
 						return nil, fmt.Errorf("error writing file data: %w", err)
 					}
 					if err := o.Close(); err != nil {
@@ -209,7 +210,6 @@ func parseTree(name string, r *Repo, tree Tree, p []string) (*Dir, error) {
 					if err := os.Chtimes(outpath, c.Time, c.Time); err != nil {
 						return nil, fmt.Errorf("error setting file time: %w", err)
 					}
-					file.Size = n
 				}
 			}
 			dir.Files[name] = file
