@@ -270,12 +270,20 @@ func buildRepo(repo string) error {
 	if err != nil {
 		return err
 	}
-	if err := config.repoTemplate.Execute(os.Stdout, RepoInfo{
+	index, err := os.Create(filepath.Join(config.OutputDir, repo, "index.html"))
+	if err != nil {
+		return fmt.Errorf("error creating repo index: %w", err)
+	}
+	if err := config.repoTemplate.Execute(index, RepoInfo{
 		Name: repo,
 		Desc: r.GetDescription(),
 		Root: d,
 	}); err != nil {
+		index.Close()
 		return fmt.Errorf("error processing repo template: %w", err)
+	}
+	if err = index.Close(); err != nil {
+		return fmt.Errorf("error closing index: %w", err)
 	}
 	return nil
 }
