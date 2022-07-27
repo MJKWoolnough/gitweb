@@ -24,15 +24,16 @@ var (
 		},
 	}
 	config = struct {
-		ReposDir                    string   `json:"reposDir"`
-		OutputDir                   string   `json:"outputDir"`
-		Pinned                      []string `json:"pinned"`
-		GitDir                      string   `json:"gitDir"`
-		IndexFile                   string   `json:"indexFile"`
-		IndexTemplate               string   `json:"indexTemplate"`
-		RepoTemplate                string   `json:"repoTemplate"`
-		PrettyPrint                 []string `json:"prettyPrint"`
-		indexTemplate, repoTemplate *template.Template
+		ReposDir                                    string   `json:"reposDir"`
+		OutputDir                                   string   `json:"outputDir"`
+		Pinned                                      []string `json:"pinned"`
+		GitDir                                      string   `json:"gitDir"`
+		IndexFile                                   string   `json:"indexFile"`
+		IndexTemplate                               string   `json:"indexTemplate"`
+		RepoTemplate                                string   `json:"repoTemplate"`
+		PrettyPrint                                 []string `json:"prettyPrint"`
+		PrettyTemplate                              string   `json:"prettyTemplate"`
+		indexTemplate, repoTemplate, prettyTemplate *template.Template
 	}{
 		ReposDir:  "./",
 		OutputDir: ".",
@@ -57,6 +58,9 @@ func readConfig(configFile string) error {
 		return fmt.Errorf("error parsing index template: %w", err)
 	}
 	if config.repoTemplate, err = template.New("repo").Funcs(fMap).Parse(config.RepoTemplate); err != nil {
+		return fmt.Errorf("error parsing repo template: %w", err)
+	}
+	if config.prettyTemplate, err = template.New("pretty").Funcs(fMap).Parse(config.PrettyTemplate); err != nil {
 		return fmt.Errorf("error parsing repo template: %w", err)
 	}
 	return nil
