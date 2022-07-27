@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-type printer func(w io.Writer, r io.Reader) (int64, error)
+type printer func(*File, io.Writer, io.Reader) (int64, error)
 
 var (
 	fMap = template.FuncMap{
@@ -45,9 +45,12 @@ var (
 		IndexFile: "index.html",
 		prettyMap: make(map[string]printer),
 	}
+	passThru = func(_ *File, w io.Writer, r io.Reader) (int64, error) {
+		return io.Copy(w, r)
+	}
 	prettyPrinters = map[string]printer{
-		".go": io.Copy,
-		".ts": io.Copy,
+		".go": passThru,
+		".ts": passThru,
 	}
 )
 
