@@ -216,13 +216,17 @@ func parseTree(name string, r *Repo, tree Tree, p []string) (*Dir, error) {
 						o = discard
 					}
 				}
+				printer := io.Copy
 				if output {
 					o, err = os.Create(outpath)
 					if err != nil {
 						return nil, fmt.Errorf("error creating data file: %w", err)
 					}
+					if p, ok := config.prettyMap[filepath.Ext(name)]; ok {
+						printer = p
+					}
 				}
-				if file.Size, err = io.Copy(o, b); err != nil {
+				if file.Size, err = printer(o, b); err != nil {
 					o.Close()
 					return nil, fmt.Errorf("error writing file data: %w", err)
 				}
