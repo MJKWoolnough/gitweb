@@ -4,9 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"io"
 	"os"
 	"strings"
 )
+
+type printer func(w io.Writer, r io.Reader) (int64, error)
 
 var (
 	fMap = template.FuncMap{
@@ -34,11 +37,17 @@ var (
 		PrettyPrint                                 []string `json:"prettyPrint"`
 		PrettyTemplate                              string   `json:"prettyTemplate"`
 		indexTemplate, repoTemplate, prettyTemplate *template.Template
+		prettyMap                                   map[string]printer
 	}{
 		ReposDir:  "./",
 		OutputDir: ".",
 		GitDir:    ".git",
 		IndexFile: "index.html",
+		prettyMap: make(map[string]printer),
+	}
+	prettyPrinters = map[string]printer{
+		".go": io.Copy,
+		".ts": io.Copy,
 	}
 )
 
@@ -62,6 +71,11 @@ func readConfig(configFile string) error {
 	}
 	if config.prettyTemplate, err = template.New("pretty").Funcs(fMap).Parse(config.PrettyTemplate); err != nil {
 		return fmt.Errorf("error parsing repo template: %w", err)
+	}
+	for _, printer := range config.PrettyPrint {
+		if p, ok := prettyPrinters[printer]; ok {
+			config.prettyMap[printer] = p
+		}
 	}
 	return nil
 }
