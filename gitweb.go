@@ -130,6 +130,7 @@ type File struct {
 	Path   string
 	Commit *Commit
 	Size   int64
+	Link   string
 }
 
 func parseTree(name string, r *Repo, tree Tree, p []string) (*Dir, error) {
@@ -175,8 +176,17 @@ func parseTree(name string, r *Repo, tree Tree, p []string) (*Dir, error) {
 				Commit: c,
 			}
 			if f[0] == '/' {
-				// Symlink
 				name = f[1:]
+				b, err := r.GetBlob(tree[f])
+				if err != nil {
+					return nil, fmt.Errorf("error getting symlink data: %w", err)
+				}
+				d, err := io.ReadAll(b)
+				if err != nil {
+					return nil, fmt.Errorf("error reading symlink data: %w", err)
+				}
+				b.Close()
+				file.Link = string(d)
 			} else {
 				output := true
 				outpath := filepath.Join(basepath, name)
