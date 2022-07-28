@@ -297,8 +297,6 @@ type RepoData struct {
 	Pin                    int
 }
 
-type indexData struct{}
-
 func buildIndex() error {
 	dir, err := os.ReadDir(config.ReposDir)
 	if err != nil {
