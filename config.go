@@ -49,7 +49,7 @@ var (
 		return io.Copy(w, r)
 	}
 	prettyPrinters = map[string]printer{
-		".go": passThru,
+		".go": highlightComments,
 		".ts": passThru,
 	}
 )
