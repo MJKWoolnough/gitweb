@@ -354,7 +354,3 @@ func buildIndex() error {
 	}
 	return nil
 }
-
-const (
-	defaultDesc = "Unnamed repository; edit this file 'description' to name the repository.\n"
-)
