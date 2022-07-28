@@ -24,11 +24,6 @@ var tokens = Tokens{
 	TokenComment: TokenComment,
 }
 
-type Token struct {
-	Type int
-	Data string
-}
-
 func handleTemplate(file *File, w io.Writer, ch <-chan parser.Phrase, err chan<- error) {
 	err <- config.prettyTemplate.Execute(w, struct {
 		*File
