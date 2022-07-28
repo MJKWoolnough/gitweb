@@ -33,7 +33,6 @@ func main() {
 			os.Exit(2)
 		}
 	}
-	// build index
 	if err := buildIndex(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(3)
