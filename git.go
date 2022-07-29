@@ -592,7 +592,7 @@ func (r *Repo) GetTree(id string) (Tree, error) {
 func (r *Repo) GetBlob(id string) (io.ReadCloser, error) {
 	b, err := r.getObject(id, ObjectBlob)
 	if err != nil {
-		return nil, fmt.Errorf("error reading blob: %w")
+		return nil, fmt.Errorf("error reading blob: %w", err)
 	}
 	return b, nil
 }
