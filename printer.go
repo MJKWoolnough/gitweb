@@ -24,14 +24,14 @@ var tokens = Tokens{
 	TokenComment: TokenComment,
 }
 
-func handleTemplate(file *File, w io.Writer, ch <-chan parser.Phrase, err chan<- error) {
+func handleTemplate(file *File, w io.Writer, ch <-chan parser.Token, err chan<- error) {
 	err <- config.prettyTemplate.Execute(w, struct {
 		*File
-		Lines <-chan parser.Phrase
+		Tokens <-chan parser.Token
 		*Tokens
 	}{
 		File:   file,
-		Lines:  ch,
+		Tokens: ch,
 		Tokens: &tokens,
 	})
 }
@@ -42,42 +42,29 @@ func prettify(file *File, w io.Writer, r io.Reader, tf parser.TokenFunc) (int64,
 	go handleTemplate(file, w, c, e)
 	var (
 		rw rwcount.Reader
-		tk parser.Parser
+		p  parser.Parser
 	)
 	if lr, ok := r.(*memio.LimitedBuffer); ok {
 		rw.Count = int64(len(*lr))
-		tk = parser.New(parser.NewByteTokeniser(*lr))
+		p = parser.New(parser.NewByteTokeniser(*lr))
 	} else {
 		rw.Reader = r
-		tk = parser.New(parser.NewReaderTokeniser(&rw))
+		p = parser.New(parser.NewReaderTokeniser(&rw))
 	}
-	tk.TokeniserState(tf)
-	tk.PhraserState(lines)
+	p.TokeniserState(tf)
 	for {
-		line, err := tk.GetPhrase()
+		tk, err := p.GetToken()
 		if err != nil {
 			return rw.Count, err
 		}
-		if line.Type == parser.PhraseDone {
+		if tk.Type == parser.TokenDone {
 			break
 		}
 		select {
-		case c <- line:
+		case c <- tk:
 		case err := <-e:
 			return rw.Count, err
 		}
 	}
 	return rw.Count, nil
-}
-
-func lines(p *parser.Parser) (parser.Phrase, parser.PhraseFunc) {
-	for {
-		switch p.ExceptRun(TokenNewLine) {
-		case TokenNewLine:
-		case parser.TokenDone:
-			return parser.Phrase{
-				Data: p.Get(),
-			}, (*parser.Parser).Done
-		}
-	}
 }
