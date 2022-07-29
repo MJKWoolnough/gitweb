@@ -58,6 +58,9 @@ func prettify(file *File, w io.Writer, r io.Reader, tf parser.TokenFunc) (int64,
 		if err != nil {
 			return rw.Count, err
 		}
+		if line.Type == parser.PhraseDone {
+			break
+		}
 		select {
 		case c <- line:
 		case err := <-e:
