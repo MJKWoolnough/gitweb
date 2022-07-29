@@ -22,9 +22,7 @@ var (
 		"sub": func(a, b int) int {
 			return a - b
 		},
-		"indent": func(n int) string {
-			return strings.Repeat("	", n)
-		},
+		"repeat": strings.Repeat,
 	}
 	config = struct {
 		ReposDir                                    string   `json:"reposDir"`
