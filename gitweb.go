@@ -126,9 +126,9 @@ type Dir struct {
 }
 
 type File struct {
-	Repo, Path, Link, Ext string
-	Commit                *Commit
-	Size                  int64
+	Repo, Name, Path, Link, Ext string
+	Commit                      *Commit
+	Size                        int64
 }
 
 type Discard struct {
@@ -181,6 +181,7 @@ func parseTree(name string, r *Repo, tree Tree, p []string) (*Dir, error) {
 			name := f
 			file := &File{
 				Repo:   repo,
+				Name:   name,
 				Path:   path.Join(fpath...),
 				Ext:    filepath.Ext(name),
 				Commit: c,
