@@ -15,13 +15,13 @@ const (
 )
 
 type Tokens struct {
-	TokenUnknown, TokenNewLine, TokenComment parser.TokenType
+	Unknown, NewLine, Comment parser.TokenType
 }
 
 var tokens = Tokens{
-	TokenUnknown: TokenUnknown,
-	TokenNewLine: TokenNewLine,
-	TokenComment: TokenComment,
+	Unknown: TokenUnknown,
+	NewLine: TokenNewLine,
+	Comment: TokenComment,
 }
 
 func handleTemplate(file *File, w io.Writer, ch <-chan parser.Token, err chan<- error) {
