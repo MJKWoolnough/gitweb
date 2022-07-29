@@ -266,7 +266,7 @@ func (r *Repo) readPackOffset(p string, o uint64, want int) (io.ReadCloser, erro
 	} else if buf[0] != 0 || buf[1] != 0 || buf[2] != 0 || buf[3] != 2 {
 		return nil, fmt.Errorf("read unsupported pack version: %x", buf)
 	}
-	if _, err := pack.Seek(int64(o), os.SEEK_SET); err != nil {
+	if _, err := pack.Seek(int64(o), io.SeekStart); err != nil {
 		return nil, fmt.Errorf("error seeking to object offset: %w", err)
 	}
 	if _, err := pack.Read(buf[:1]); err != nil {
