@@ -141,8 +141,8 @@ func (Discard) Close() error {
 
 var discard = Discard{Writer: io.Discard}
 
-func parseTree(name string, r *Repo, tree Tree, p []string) (*Dir, error) {
-	basepath := filepath.Join(append(append(make([]string, len(p)+3), config.OutputDir, name, "files"), p...)...)
+func parseTree(repo string, r *Repo, tree Tree, p []string) (*Dir, error) {
+	basepath := filepath.Join(append(append(make([]string, len(p)+3), config.OutputDir, repo, "files"), p...)...)
 	if err := os.MkdirAll(basepath, 0o755); err != nil {
 		return nil, fmt.Errorf("error creating directories: %w", err)
 	}
@@ -165,7 +165,7 @@ func parseTree(name string, r *Repo, tree Tree, p []string) (*Dir, error) {
 			if err != nil {
 				return nil, fmt.Errorf("error reading tree: %w", err)
 			}
-			d, err := parseTree(name, r, nt, append(p, f))
+			d, err := parseTree(repo, r, nt, append(p, f))
 			if err != nil {
 				return nil, fmt.Errorf("error parsing dir: %w", err)
 			}
