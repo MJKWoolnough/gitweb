@@ -27,12 +27,12 @@ var tokens = Tokens{
 func handleTemplate(file *File, w io.Writer, ch <-chan parser.Token, err chan<- error) {
 	err <- config.prettyTemplate.Execute(w, struct {
 		*File
-		Tokens <-chan parser.Token
-		*Tokens
+		Tokens     <-chan parser.Token
+		TokenTypes *Tokens
 	}{
-		File:   file,
-		Tokens: ch,
-		Tokens: &tokens,
+		File:       file,
+		Tokens:     ch,
+		TokenTypes: &tokens,
 	})
 }
 
