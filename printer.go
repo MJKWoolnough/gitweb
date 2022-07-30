@@ -35,6 +35,9 @@ func handleTemplate(file *File, w io.Writer, ch <-chan parser.Token, err chan<- 
 }
 
 func prettify(file *File, w io.Writer, r io.Reader, tf parser.TokenFunc) (int64, error) {
+	if tf == nil {
+		return io.Copy(w, r)
+	}
 	c := make(chan parser.Token)
 	e := make(chan error)
 	go handleTemplate(file, w, c, e)
