@@ -7,6 +7,8 @@ import (
 	"io"
 	"os"
 	"strings"
+
+	"vimagination.zapto.org/parser"
 )
 
 type printer func(*File, io.Writer, io.Reader) (int64, error)
@@ -36,20 +38,16 @@ var (
 		PrettyPrint                                 []string `json:"prettyPrint"`
 		PrettyTemplate                              string   `json:"prettyTemplate"`
 		indexTemplate, repoTemplate, prettyTemplate *template.Template
-		prettyMap                                   map[string]printer
+		prettyMap                                   map[string]parser.TokenFunc
 	}{
 		ReposDir:  "./",
 		OutputDir: ".",
 		GitDir:    ".git",
 		IndexFile: "index.html",
-		prettyMap: make(map[string]printer),
+		prettyMap: make(map[string]parser.TokenFunc),
 	}
-	passThru = func(_ *File, w io.Writer, r io.Reader) (int64, error) {
-		return io.Copy(w, r)
-	}
-	prettyPrinters = map[string]printer{
-		".go": highlightComments,
-		".ts": passThru,
+	prettyPrinters = map[string]parser.TokenFunc{
+		".go": commentsPlain,
 	}
 )
 

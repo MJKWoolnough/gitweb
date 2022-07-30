@@ -12,6 +12,8 @@ import (
 	"path/filepath"
 	"sort"
 	"time"
+
+	"vimagination.zapto.org/parser"
 )
 
 func main() {
@@ -217,7 +219,7 @@ func parseTree(repo string, r *Repo, tree Tree, p []string) (*Dir, error) {
 						o = discard
 					}
 				}
-				printer := passThru
+				var printer parser.TokenFunc
 				if output {
 					o, err = os.Create(outpath)
 					if err != nil {
@@ -227,7 +229,7 @@ func parseTree(repo string, r *Repo, tree Tree, p []string) (*Dir, error) {
 						printer = p
 					}
 				}
-				if file.Size, err = printer(file, o, b); err != nil {
+				if file.Size, err = prettify(file, o, b, printer); err != nil {
 					o.Close()
 					return nil, fmt.Errorf("error writing file data: %w", err)
 				}
