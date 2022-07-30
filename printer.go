@@ -10,17 +10,15 @@ import (
 
 const (
 	TokenUnknown parser.TokenType = iota
-	TokenNewLine
 	TokenComment
 )
 
 type Tokens struct {
-	Unknown, NewLine, Comment parser.TokenType
+	Unknown, Comment parser.TokenType
 }
 
 var tokens = Tokens{
 	Unknown: TokenUnknown,
-	NewLine: TokenNewLine,
 	Comment: TokenComment,
 }
 
