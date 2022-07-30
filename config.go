@@ -23,6 +23,7 @@ var (
 			return a - b
 		},
 		"repeat": strings.Repeat,
+		"split":  strings.Split,
 	}
 	config = struct {
 		ReposDir                                    string   `json:"reposDir"`
