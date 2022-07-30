@@ -1,8 +1,6 @@
 package main
 
 import (
-	"io"
-
 	"vimagination.zapto.org/parser"
 )
 
@@ -83,8 +81,4 @@ func commentsMultiline(t *parser.Tokeniser) (parser.Token, parser.TokenFunc) {
 			return t.Error()
 		}
 	}
-}
-
-func highlightComments(file *File, w io.Writer, r io.Reader) (int64, error) {
-	return prettify(file, w, r, commentsPlain)
 }
