@@ -41,7 +41,9 @@ func commentsPlain(t *parser.Tokeniser) (parser.Token, parser.TokenFunc) {
 				Data: t.Get(),
 			}, comments
 		default:
-			return t.Error()
+			return parser.Token{
+				Data: t.Get(),
+			}, (*parser.Tokeniser).Done
 		}
 	}
 }
