@@ -13,9 +13,7 @@ var (
 
 func commentsPlain(t *parser.Tokeniser) (parser.Token, parser.TokenFunc) {
 	for {
-		switch c := t.ExceptRun("\"'`/\n"); c {
-		case -1:
-			return t.Error()
+		switch c := t.ExceptRun("\"'`/"); c {
 		case '"', '\'':
 			er := commentsQuotedExceptSingle
 			if c == '"' {
@@ -42,29 +40,18 @@ func commentsPlain(t *parser.Tokeniser) (parser.Token, parser.TokenFunc) {
 			return parser.Token{
 				Data: t.Get(),
 			}, comments
-		case '\n':
-			t.Except("")
-			return parser.Token{
-				Type: TokenNewLine,
-				Data: t.Get(),
-			}, commentsPlain
+		default:
+			return t.Error()
 		}
 	}
 }
 
 func commentsMultilineQuoted(t *parser.Tokeniser) (parser.Token, parser.TokenFunc) {
-	switch t.ExceptRun("`\n") {
-	case '\n':
-		t.Except("")
-		return parser.Token{
-			Data: t.Get(),
-		}, commentsMultilineQuoted
-	case '`':
+	if t.ExceptRun("`") == '`' {
 		t.Except("")
 		return commentsPlain(t)
-	default:
-		return t.Error()
 	}
+	return t.Error()
 }
 
 func comments(t *parser.Tokeniser) (parser.Token, parser.TokenFunc) {
@@ -82,30 +69,18 @@ func comments(t *parser.Tokeniser) (parser.Token, parser.TokenFunc) {
 }
 
 func commentsMultiline(t *parser.Tokeniser) (parser.Token, parser.TokenFunc) {
-	c := t.ExceptRun("`\n")
-	switch c {
-	case '`':
-		t.Except("")
-		return parser.Token{
-			Type: TokenComment,
-			Data: t.Get(),
-		}, commentsPlain
-	case '\n':
-		return parser.Token{
-			Type: TokenComment,
-			Data: t.Get(),
-		}, commentsNewLineInComment
-	default:
-		return t.Error()
+	for {
+		if t.ExceptRun("*") == '*' {
+			if t.Accept("/") {
+				return parser.Token{
+					Type: TokenComment,
+					Data: t.Get(),
+				}, commentsPlain
+			}
+		} else {
+			return t.Error()
+		}
 	}
-}
-
-func commentsNewLineInComment(t *parser.Tokeniser) (parser.Token, parser.TokenFunc) {
-	t.Except("")
-	return parser.Token{
-		Type: TokenNewLine,
-		Data: t.Get(),
-	}, commentsMultiline
 }
 
 func highlightComments(file *File, w io.Writer, r io.Reader) (int64, error) {
