@@ -17,25 +17,25 @@ import (
 func main() {
 	u, err := user.Current()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error getting current user: %s", err)
+		fmt.Fprintf(os.Stderr, "error getting current user: %s\n", err)
 		os.Exit(1)
 	}
 	configFile := flag.String("c", filepath.Join(u.HomeDir, ".gitweb"), "config file location")
 	gitDir := flag.String("r", "", "git repo to build")
 	flag.Parse()
 	if err := readConfig(*configFile); err != nil {
-		fmt.Fprintf(os.Stderr, "error reading config: %s", err)
+		fmt.Fprintf(os.Stderr, "error reading config: %s\n", err)
 		os.Exit(2)
 	}
 	if *gitDir != "" {
 		if err := buildRepo(*gitDir); err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(2)
+			fmt.Fprintf(os.Stderr, "error building repo: %s\n", err)
+			os.Exit(3)
 		}
 	}
 	if err := buildIndex(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(3)
+		fmt.Fprintf(os.Stderr, "error building index: %s\n", err)
+		os.Exit(4)
 	}
 }
 
