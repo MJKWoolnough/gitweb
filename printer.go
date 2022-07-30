@@ -53,9 +53,12 @@ func prettify(file *File, w io.Writer, r io.Reader, tf parser.TokenFunc) (int64,
 	for {
 		tk, err := p.GetToken()
 		if err != nil {
+			close(c)
+			<-e
 			return rw.Count, err
 		}
 		if tk.Type == parser.TokenDone {
+			close(c)
 			break
 		}
 		select {
@@ -63,6 +66,9 @@ func prettify(file *File, w io.Writer, r io.Reader, tf parser.TokenFunc) (int64,
 		case err := <-e:
 			return rw.Count, err
 		}
+	}
+	if err := <-e; err != nil {
+		return rw.Count, err
 	}
 	return rw.Count, nil
 }
