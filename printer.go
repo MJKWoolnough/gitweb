@@ -73,5 +73,5 @@ func prettify(file *File, w io.Writer, r io.Reader, tf parser.TokenFunc) (int64,
 	if err := <-e; err != nil {
 		return rw.Count, err
 	}
-	return rw.Count, nil
+	return rw.Count, rw.Err
 }
