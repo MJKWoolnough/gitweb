@@ -31,9 +31,12 @@ var (
 		GitDir                                      string   `json:"gitDir"`
 		IndexFile                                   string   `json:"indexFile"`
 		IndexTemplate                               string   `json:"indexTemplate"`
+		IndexTemplateFile                           string   `json:"indexTemplateFile"`
 		RepoTemplate                                string   `json:"repoTemplate"`
+		RepoTemplateFile                            string   `json:"repoTemplateFile"`
 		PrettyPrint                                 []string `json:"prettyPrint"`
 		PrettyTemplate                              string   `json:"prettyTemplate"`
+		PrettyTemplateFile                          string   `json:"prettyTemplateFile"`
 		indexTemplate, repoTemplate, prettyTemplate *template.Template
 		prettyMap                                   map[string]parser.TokenFunc
 	}{
@@ -60,13 +63,28 @@ func readConfig(configFile string) error {
 	if err := json.NewDecoder(f).Decode(&config); err != nil {
 		return fmt.Errorf("error parsing config file: %w", err)
 	}
-	if config.indexTemplate, err = template.New("index").Funcs(fMap).Parse(config.IndexTemplate); err != nil {
+	config.indexTemplate = template.New("index").Funcs(fMap)
+	if config.IndexTemplateFile != "" {
+		if _, err = config.indexTemplate.ParseFiles(config.IndexTemplateFile); err != nil {
+			return fmt.Errorf("error parsing index template file: %w", err)
+		}
+	} else if _, err = config.indexTemplate.Parse(config.IndexTemplate); err != nil {
 		return fmt.Errorf("error parsing index template: %w", err)
 	}
-	if config.repoTemplate, err = template.New("repo").Funcs(fMap).Parse(config.RepoTemplate); err != nil {
+	config.repoTemplate = template.New("repo").Funcs(fMap)
+	if config.RepoTemplateFile != "" {
+		if _, err = config.repoTemplate.ParseFiles(config.RepoTemplateFile); err != nil {
+			return fmt.Errorf("error parsing repo template file: %w", err)
+		}
+	} else if _, err = config.repoTemplate.Parse(config.RepoTemplate); err != nil {
 		return fmt.Errorf("error parsing repo template: %w", err)
 	}
-	if config.prettyTemplate, err = template.New("pretty").Funcs(fMap).Parse(config.PrettyTemplate); err != nil {
+	config.prettyTemplate = template.New("pretty").Funcs(fMap)
+	if config.PrettyTemplateFile != "" {
+		if _, err = config.prettyTemplate.ParseFiles(config.PrettyTemplateFile); err != nil {
+			return fmt.Errorf("error parsing pretty template file: %w", err)
+		}
+	} else if _, err = config.prettyTemplate.Parse(config.PrettyTemplate); err != nil {
 		return fmt.Errorf("error parsing repo template: %w", err)
 	}
 	for _, printer := range config.PrettyPrint {
