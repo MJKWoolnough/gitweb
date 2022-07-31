@@ -39,9 +39,7 @@ func commentsPlain(t *parser.Tokeniser) (parser.Token, parser.TokenFunc) {
 				Data: t.Get(),
 			}, comments
 		default:
-			return parser.Token{
-				Data: t.Get(),
-			}, (*parser.Tokeniser).Done
+			return commentsOutputRest(t)
 		}
 	}
 }
@@ -51,7 +49,7 @@ func commentsMultilineQuoted(t *parser.Tokeniser) (parser.Token, parser.TokenFun
 		t.Except("")
 		return commentsPlain(t)
 	}
-	return t.Error()
+	return commentsOutputRest(t)
 }
 
 func comments(t *parser.Tokeniser) (parser.Token, parser.TokenFunc) {
@@ -78,7 +76,14 @@ func commentsMultiline(t *parser.Tokeniser) (parser.Token, parser.TokenFunc) {
 				}, commentsPlain
 			}
 		} else {
-			return t.Error()
+			return commentsOutputRest(t)
 		}
 	}
+}
+
+func commentsOutputRest(t *parser.Tokeniser) (parser.Token, parser.TokenFunc) {
+	t.ExceptRun("")
+	return parser.Token{
+		Data: t.Get(),
+	}, (*parser.Tokeniser).Done
 }
