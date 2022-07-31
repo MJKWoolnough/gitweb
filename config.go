@@ -4,14 +4,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
-	"io"
 	"os"
 	"strings"
 
 	"vimagination.zapto.org/parser"
 )
-
-type printer func(*File, io.Writer, io.Reader) (int64, error)
 
 var (
 	fMap = template.FuncMap{
