@@ -258,6 +258,14 @@ func (r *Repo) loadPacksData() {
 				r.packsErr = fmt.Errorf("error reading pack file for %s: %w", pack, err)
 				return
 			}
+			if string(b[:4]) != "PACK" {
+				r.packsErr = errors.New("invalid pack header")
+				return
+			}
+			if b[4] != 0 || b[5] != 0 || b[6] != 0 || b[7] != 2 {
+				r.packsErr = fmt.Errorf("read unsupported pack version: %x", b[4:8])
+				return
+			}
 			r.packs[pack] = b
 		}
 	}
@@ -269,20 +277,10 @@ func (r *Repo) readPackOffset(p string, o uint64, want int) (io.ReadCloser, erro
 		return nil, errors.New("invalid pack file")
 	}
 	pack := memio.Open(pd)
-	var buf [4]byte
-	if _, err := pack.Read(buf[:]); err != nil {
-		return nil, fmt.Errorf("error reading pack header: %w", err)
-	} else if string(buf[:]) != "PACK" {
-		return nil, errors.New("invalid pack header")
-	}
-	if _, err := pack.Read(buf[:]); err != nil {
-		return nil, fmt.Errorf("error reading pack version: %w", err)
-	} else if buf[0] != 0 || buf[1] != 0 || buf[2] != 0 || buf[3] != 2 {
-		return nil, fmt.Errorf("read unsupported pack version: %x", buf)
-	}
 	if _, err := pack.Seek(int64(o), io.SeekStart); err != nil {
 		return nil, fmt.Errorf("error seeking to object offset: %w", err)
 	}
+	var buf [1]byte
 	if _, err := pack.Read(buf[:1]); err != nil {
 		return nil, fmt.Errorf("error reading pack object type: %w", err)
 	}
