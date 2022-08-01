@@ -306,21 +306,22 @@ func (r *Repo) readPackOffset(p string, o uint64, want int) (io.ReadCloser, erro
 	if _, err := pack.Seek(int64(o), io.SeekStart); err != nil {
 		return nil, fmt.Errorf("error seeking to object offset: %w", err)
 	}
-	var buf [1]byte
-	if _, err := pack.Read(buf[:1]); err != nil {
+	buf, err := pack.ReadByte()
+	if err != nil {
 		return nil, fmt.Errorf("error reading pack object type: %w", err)
 	}
-	typ := (buf[0] >> 4) & 7
+	typ := (buf >> 4) & 7
 	if int(typ) != want && typ != ObjectRefDelta && typ != ObjectOffsetDelta {
 		return nil, errors.New("wrong packed type")
 	}
-	size := int64(buf[0] & 15)
+	size := int64(buf & 15)
 	shift := 4
-	for buf[0]&0x80 != 0 {
-		if _, err := pack.Read(buf[:1]); err != nil {
+	for buf&0x80 != 0 {
+		buf, err = pack.ReadByte()
+		if err != nil {
 			return nil, fmt.Errorf("error reading pack object size: %w", err)
 		}
-		size |= int64(buf[0]&0x7f) << shift
+		size |= int64(buf&0x7f) << shift
 		shift += 7
 	}
 	var base io.ReadCloser
