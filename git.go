@@ -74,11 +74,23 @@ type packObject struct {
 	offset uint64
 }
 
+type pack struct {
+	data []byte
+
+	mu      sync.RWMutex
+	objects map[uint64]object
+}
+
+type object struct {
+	typ  int
+	data []byte
+}
+
 type Repo struct {
 	path        string
 	loadPacks   sync.Once
 	packsErr    error
-	packs       map[string][]byte
+	packs       map[string]pack
 	packObjects map[string]packObject
 
 	cacheMu    sync.RWMutex
@@ -243,19 +255,19 @@ func (r *Repo) loadPacksData() {
 			}
 		}
 	}
-	r.packs = make(map[string][]byte, len(packs))
+	r.packs = make(map[string]pack, len(packs))
 	for _, p := range packs {
 		if len(p) > 5 && p[0] == 'P' && p[1] == ' ' && string(p[len(p)-5:]) == ".pack" {
-			pack := string(p[2:])
-			f, err := os.Open(filepath.Join(r.path, "objects", "pack", pack))
+			packID := string(p[2:])
+			f, err := os.Open(filepath.Join(r.path, "objects", "pack", packID))
 			if err != nil {
-				r.packsErr = fmt.Errorf("error opening pack file for %s: %w", pack, err)
+				r.packsErr = fmt.Errorf("error opening pack file for %s: %w", packID, err)
 				return
 			}
 			b, err := io.ReadAll(f)
 			f.Close()
 			if err != nil {
-				r.packsErr = fmt.Errorf("error reading pack file for %s: %w", pack, err)
+				r.packsErr = fmt.Errorf("error reading pack file for %s: %w", packID, err)
 				return
 			}
 			if string(b[:4]) != "PACK" {
@@ -266,7 +278,11 @@ func (r *Repo) loadPacksData() {
 				r.packsErr = fmt.Errorf("read unsupported pack version: %x", b[4:8])
 				return
 			}
-			r.packs[pack] = b
+			r.packs[packID] = pack{
+				data:    b,
+				objects: make(map[uint64]object),
+			}
+
 		}
 	}
 }
@@ -276,7 +292,17 @@ func (r *Repo) readPackOffset(p string, o uint64, want int) (io.ReadCloser, erro
 	if !ok {
 		return nil, errors.New("invalid pack file")
 	}
-	pack := memio.Open(pd)
+	pd.mu.RLock()
+	if po, ok := pd.objects[o]; ok {
+		pd.mu.RUnlock()
+		if po.typ != want {
+			return nil, errors.New("wrong packed type")
+		}
+		b := memio.LimitedBuffer(po.data)
+		return &b, nil
+	}
+	pd.mu.RUnlock()
+	pack := memio.Open(pd.data)
 	if _, err := pack.Seek(int64(o), io.SeekStart); err != nil {
 		return nil, fmt.Errorf("error seeking to object offset: %w", err)
 	}
@@ -410,6 +436,12 @@ func (r *Repo) readPackOffset(p string, o uint64, want int) (io.ReadCloser, erro
 	if len(patched) != cap(patched) {
 		return nil, errors.New("failed to read complete patched object")
 	}
+	pd.mu.Lock()
+	pd.objects[o] = object{
+		typ:  want,
+		data: patched,
+	}
+	pd.mu.Unlock()
 	return &patched, nil
 }
 
