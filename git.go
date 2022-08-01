@@ -78,6 +78,7 @@ type Repo struct {
 	path        string
 	loadPacks   sync.Once
 	packsErr    error
+	packs       map[string][]byte
 	packObjects map[string]packObject
 
 	cacheMu    sync.RWMutex
@@ -242,19 +243,32 @@ func (r *Repo) loadPacksData() {
 			}
 		}
 	}
+	r.packs = make(map[string][]byte, len(packs))
+	for _, p := range packs {
+		if len(p) > 5 && p[0] == 'P' && p[1] == ' ' && string(p[len(p)-5:]) == ".pack" {
+			pack := string(p[2:])
+			f, err := os.Open(filepath.Join(r.path, "objects", "pack", pack))
+			if err != nil {
+				r.packsErr = fmt.Errorf("error opening pack file for %s: %w", pack, err)
+				return
+			}
+			b, err := io.ReadAll(f)
+			f.Close()
+			if err != nil {
+				r.packsErr = fmt.Errorf("error reading pack file for %s: %w", pack, err)
+				return
+			}
+			r.packs[pack] = b
+		}
+	}
 }
 
 func (r *Repo) readPackOffset(p string, o uint64, want int) (io.ReadCloser, error) {
-	pack, err := os.Open(filepath.Join(r.path, "objects", "pack", p))
-	if err != nil {
-		return nil, fmt.Errorf("error opening pack file: %w", err)
+	pd, ok := r.packs[p]
+	if !ok {
+		return nil, errors.New("invalid pack file")
 	}
-	close := true
-	defer func() {
-		if close {
-			pack.Close()
-		}
-	}()
+	pack := memio.Open(pd)
 	var buf [4]byte
 	if _, err := pack.Read(buf[:]); err != nil {
 		return nil, fmt.Errorf("error reading pack header: %w", err)
@@ -292,7 +306,6 @@ func (r *Repo) readPackOffset(p string, o uint64, want int) (io.ReadCloser, erro
 		if err != nil {
 			return nil, fmt.Errorf("error starting to decompress object: %w", err)
 		}
-		close = false
 		return z, nil
 	case ObjectOffsetDelta:
 		ber := byteio.BigEndianReader{Reader: pack}
@@ -307,7 +320,10 @@ func (r *Repo) readPackOffset(p string, o uint64, want int) (io.ReadCloser, erro
 			return nil, fmt.Errorf("error reading base object: %w", err)
 		}
 	case ObjectRefDelta:
-		var ref [20]byte
+		var (
+			ref [20]byte
+			err error
+		)
 		if _, err := pack.Read(ref[:]); err != nil {
 			return nil, fmt.Errorf("error reading delta ref: %w", err)
 		}
@@ -322,7 +338,6 @@ func (r *Repo) readPackOffset(p string, o uint64, want int) (io.ReadCloser, erro
 	if err != nil {
 		return nil, fmt.Errorf("error starting to decompress object: %w", err)
 	}
-	close = false
 	defer z.Close()
 	b := byteio.StickyLittleEndianReader{Reader: z}
 	var bSize uint64
