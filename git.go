@@ -90,7 +90,7 @@ type Repo struct {
 	path        string
 	loadPacks   sync.Once
 	packsErr    error
-	packs       map[string]pack
+	packs       map[string]*pack
 	packObjects map[string]packObject
 
 	cacheMu    sync.RWMutex
@@ -255,7 +255,7 @@ func (r *Repo) loadPacksData() {
 			}
 		}
 	}
-	r.packs = make(map[string]pack, len(packs))
+	r.packs = make(map[string]*pack, len(packs))
 	for _, p := range packs {
 		if len(p) > 5 && p[0] == 'P' && p[1] == ' ' && string(p[len(p)-5:]) == ".pack" {
 			packID := string(p[2:])
@@ -278,7 +278,7 @@ func (r *Repo) loadPacksData() {
 				r.packsErr = fmt.Errorf("read unsupported pack version: %x", b[4:8])
 				return
 			}
-			r.packs[packID] = pack{
+			r.packs[packID] = &pack{
 				data:    b,
 				objects: make(map[uint64]object),
 			}
