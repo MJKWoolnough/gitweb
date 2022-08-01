@@ -69,6 +69,7 @@ func comments(t *parser.Tokeniser) (parser.Token, parser.TokenFunc) {
 func commentsMultiline(t *parser.Tokeniser) (parser.Token, parser.TokenFunc) {
 	for {
 		if t.ExceptRun("*") == '*' {
+			t.Except("")
 			if t.Accept("/") {
 				return parser.Token{
 					Type: TokenComment,
