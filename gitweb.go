@@ -16,12 +16,15 @@ import (
 	"vimagination.zapto.org/parser"
 )
 
+var force bool
+
 func main() {
 	u, err := user.Current()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error getting current user: %s\n", err)
 		os.Exit(1)
 	}
+	flag.BoolVar(&force, "f", false, "force rebuild all files")
 	configFile := flag.String("c", filepath.Join(u.HomeDir, ".gitweb"), "config file location")
 	gitDir := flag.String("r", "", "git repo to build")
 	flag.Parse()
@@ -209,7 +212,7 @@ func parseTree(repo string, r *Repo, tree Tree, p []string) (*Dir, error) {
 				if err != nil {
 					return nil, fmt.Errorf("error getting file data: %w", err)
 				}
-				if _, ok := fileMap[name]; ok {
+				if _, ok := fileMap[name]; !force && ok {
 					fi, err := os.Stat(outpath)
 					if err != nil {
 						return nil, fmt.Errorf("error while stat'ing file: %w", err)
