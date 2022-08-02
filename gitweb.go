@@ -345,6 +345,9 @@ func buildIndex() error {
 			}
 		}
 	}
+	if latest.IsZero() {
+		return errors.New("no repos")
+	}
 	sort.Slice(repos, func(i, j int) bool {
 		ir := repos[i]
 		jr := repos[j]
