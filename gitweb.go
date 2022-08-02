@@ -241,9 +241,9 @@ func parseTree(repo string, r *Repo, tree Tree, p []string) (*Dir, error) {
 						return nil, fmt.Errorf("error setting file time: %w", err)
 					}
 				}
+				delete(fileMap, name)
 			}
 			dir.Files[name] = file
-			delete(fileMap, name)
 		}
 	}
 	for f := range fileMap {
