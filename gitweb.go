@@ -280,7 +280,8 @@ func buildRepo(repo string) error {
 	if err != nil {
 		return err
 	}
-	index, err := os.Create(filepath.Join(config.OutputDir, repo, "index.html"))
+	indexPath := filepath.Join(config.OutputDir, repo, "index.html")
+	index, err := os.Create(indexPath)
 	if err != nil {
 		return fmt.Errorf("error creating repo index: %w", err)
 	}
@@ -294,6 +295,9 @@ func buildRepo(repo string) error {
 	}
 	if err = index.Close(); err != nil {
 		return fmt.Errorf("error closing index: %w", err)
+	}
+	if err := os.Chtimes(indexPath, latest.Time, latest.Time); err != nil {
+		return fmt.Errorf("error setting repo index file time: %w", err)
 	}
 	return nil
 }
