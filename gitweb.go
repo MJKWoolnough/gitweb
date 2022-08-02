@@ -314,6 +314,7 @@ func buildIndex() error {
 		return fmt.Errorf("error reading repos dir: %w", err)
 	}
 	repos := make([]RepoData, 0, len(dir))
+	var latest time.Time
 	for _, r := range dir {
 		if r.Type()&fs.ModeDir != 0 {
 			name := r.Name()
@@ -330,6 +331,9 @@ func buildIndex() error {
 						pinPos = n
 						break
 					}
+				}
+				if c.Time.After(latest) {
+					latest = c.Time
 				}
 				repos = append(repos, RepoData{
 					Name:           name,
@@ -353,13 +357,17 @@ func buildIndex() error {
 		}
 		return ir.Pin < jr.Pin
 	})
-	f, err := os.Create(filepath.Join(config.OutputDir, config.IndexFile))
+	indexPath := filepath.Join(config.OutputDir, config.IndexFile)
+	f, err := os.Create(indexPath)
 	if err != nil {
 		return fmt.Errorf("error creating index: %w", err)
 	}
 	defer f.Close()
 	if err := config.indexTemplate.Execute(f, repos); err != nil {
 		return fmt.Errorf("error processing template: %w", err)
+	}
+	if err := os.Chtimes(indexPath, latest, latest); err != nil {
+		return fmt.Errorf("error setting repo index file time: %w", err)
 	}
 	return nil
 }
