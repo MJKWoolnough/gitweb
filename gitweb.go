@@ -28,6 +28,7 @@ func main() {
 	flag.BoolVar(&force, "f", false, "force rebuild all files")
 	configFile := flag.String("c", filepath.Join(u.HomeDir, ".gitweb"), "config file location")
 	gitDir := flag.String("r", "", "git repo to build")
+	index := flag.Bool("n", false, "no main index")
 	flag.Parse()
 	if err := readConfig(*configFile); err != nil {
 		fmt.Fprintf(os.Stderr, "error reading config: %s\n", err)
@@ -39,9 +40,11 @@ func main() {
 			os.Exit(3)
 		}
 	}
-	if err := buildIndex(); err != nil {
-		fmt.Fprintf(os.Stderr, "error building index: %s\n", err)
-		os.Exit(4)
+	if *index {
+		if err := buildIndex(); err != nil {
+			fmt.Fprintf(os.Stderr, "error building index: %s\n", err)
+			os.Exit(4)
+		}
 	}
 }
 
