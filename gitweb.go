@@ -69,7 +69,7 @@ func getFileLastCommit(r *Repo, path []string) (*Commit, error) {
 		}
 		objID = nID
 	}
-	for {
+	for cid != "" {
 		c, err := r.GetCommit(cid)
 		if err != nil {
 			return nil, fmt.Errorf("error reading commit: %w", err)
@@ -92,6 +92,7 @@ func getFileLastCommit(r *Repo, path []string) (*Commit, error) {
 		cid = c.Parent
 		last = c
 	}
+	return last, nil
 }
 
 type files []string
