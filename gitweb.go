@@ -362,6 +362,17 @@ func buildIndex() error {
 	if latest.IsZero() {
 		return errors.New("no repos")
 	}
+	indexPath := filepath.Join(config.OutputDir, config.IndexFile)
+	if !force {
+		fi, err := os.Stat(indexPath)
+		if !os.IsNotExist(err) {
+			if err != nil {
+				return fmt.Errorf("error stat'ing main index file: %w", err)
+			} else if fi.ModTime().Equal(latest) {
+				return nil
+			}
+		}
+	}
 	sort.Slice(repos, func(i, j int) bool {
 		ir := repos[i]
 		jr := repos[j]
@@ -374,7 +385,6 @@ func buildIndex() error {
 		}
 		return ir.Pin < jr.Pin
 	})
-	indexPath := filepath.Join(config.OutputDir, config.IndexFile)
 	f, err := os.Create(indexPath)
 	if err != nil {
 		return fmt.Errorf("error creating index: %w", err)
