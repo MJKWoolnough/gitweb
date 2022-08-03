@@ -276,6 +276,17 @@ func buildRepo(repo string) error {
 	if err != nil {
 		return fmt.Errorf("error reading commit: %w", err)
 	}
+	indexPath := filepath.Join(config.OutputDir, repo, "index.html")
+	if !force {
+		fi, err := os.Stat(indexPath)
+		if !os.IsNotExist(err) {
+			if err != nil {
+				return fmt.Errorf("error stat'ing repo index file: %w", err)
+			} else if fi.ModTime().Equal(latest.Time) {
+				return nil
+			}
+		}
+	}
 	tree, err := r.GetTree(latest.Tree)
 	if err != nil {
 		return fmt.Errorf("error reading tree: %w", err)
@@ -284,7 +295,6 @@ func buildRepo(repo string) error {
 	if err != nil {
 		return err
 	}
-	indexPath := filepath.Join(config.OutputDir, repo, "index.html")
 	index, err := os.Create(indexPath)
 	if err != nil {
 		return fmt.Errorf("error creating repo index: %w", err)
