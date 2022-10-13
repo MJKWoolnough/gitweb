@@ -352,7 +352,7 @@ func (r *Repo) readPackOffset(p string, o uint64, want int) (io.ReadCloser, erro
 		if _, err := pack.Read(ref[:]); err != nil {
 			return nil, fmt.Errorf("error reading delta ref: %w", err)
 		}
-		base, err = r.getObject(string(ref[:]), want)
+		base, err = r.getObject(fmt.Sprintf("%x", ref[:]), want)
 		if err != nil {
 			return nil, fmt.Errorf("error reading base object: %w", err)
 		}
