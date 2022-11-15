@@ -72,7 +72,7 @@ func readConfig(configFile string) error {
 		b, err := io.ReadAll(f)
 		f.Close()
 		if err != nil {
-			return fmt.Errorf("error reading index templete file: %w", err)
+			return fmt.Errorf("error reading index template file: %w", err)
 		}
 		config.IndexTemplate = string(b)
 	}
@@ -84,7 +84,7 @@ func readConfig(configFile string) error {
 		b, err := io.ReadAll(f)
 		f.Close()
 		if err != nil {
-			return fmt.Errorf("error reading repo templete file: %w", err)
+			return fmt.Errorf("error reading repo template file: %w", err)
 		}
 		config.RepoTemplate = string(b)
 	}
@@ -96,7 +96,7 @@ func readConfig(configFile string) error {
 		b, err := io.ReadAll(f)
 		f.Close()
 		if err != nil {
-			return fmt.Errorf("error reading pretty templete file: %w", err)
+			return fmt.Errorf("error reading pretty template file: %w", err)
 		}
 		config.PrettyTemplate = string(b)
 	}
