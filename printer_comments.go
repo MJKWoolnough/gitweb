@@ -14,9 +14,11 @@ func commentsPlain(t *parser.Tokeniser) (parser.Token, parser.TokenFunc) {
 		switch c := t.ExceptRun("\"'`/"); c {
 		case '"', '\'':
 			er := commentsQuotedExceptSingle
+
 			if c == '"' {
 				er = commentsQuotedExceptDouble
 			}
+
 		QuoteLoop:
 			for {
 				switch t.ExceptRun(er) {
@@ -27,17 +29,14 @@ func commentsPlain(t *parser.Tokeniser) (parser.Token, parser.TokenFunc) {
 					t.Except("")
 				case c:
 					t.Except("")
+
 					break QuoteLoop
 				}
 			}
 		case '`':
-			return parser.Token{
-				Data: t.Get(),
-			}, commentsMultilineQuoted
+			return parser.Token{Data: t.Get()}, commentsMultilineQuoted
 		case '/':
-			return parser.Token{
-				Data: t.Get(),
-			}, comments
+			return parser.Token{Data: t.Get()}, comments
 		default:
 			return commentsOutputRest(t)
 		}
@@ -47,15 +46,19 @@ func commentsPlain(t *parser.Tokeniser) (parser.Token, parser.TokenFunc) {
 func commentsMultilineQuoted(t *parser.Tokeniser) (parser.Token, parser.TokenFunc) {
 	if t.ExceptRun("`") == '`' {
 		t.Except("")
+
 		return commentsPlain(t)
 	}
+
 	return commentsOutputRest(t)
 }
 
 func comments(t *parser.Tokeniser) (parser.Token, parser.TokenFunc) {
 	t.Except("")
+
 	if t.Accept("/") {
 		t.ExceptRun("\n")
+
 		return parser.Token{
 			Type: TokenComment,
 			Data: t.Get(),
@@ -63,6 +66,7 @@ func comments(t *parser.Tokeniser) (parser.Token, parser.TokenFunc) {
 	} else if t.Accept("*") {
 		return commentsMultiline(t)
 	}
+
 	return commentsPlain(t)
 }
 
@@ -70,6 +74,7 @@ func commentsMultiline(t *parser.Tokeniser) (parser.Token, parser.TokenFunc) {
 	for {
 		if t.ExceptRun("*") == '*' {
 			t.Except("")
+
 			if t.Accept("/") {
 				return parser.Token{
 					Type: TokenComment,
@@ -84,6 +89,7 @@ func commentsMultiline(t *parser.Tokeniser) (parser.Token, parser.TokenFunc) {
 
 func commentsOutputRest(t *parser.Tokeniser) (parser.Token, parser.TokenFunc) {
 	t.ExceptRun("")
+
 	return parser.Token{
 		Data: t.Get(),
 	}, (*parser.Tokeniser).Done

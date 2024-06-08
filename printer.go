@@ -38,13 +38,17 @@ func prettify(file *File, w io.Writer, r io.Reader, tf parser.TokenFunc) (int64,
 	if tf == nil {
 		return io.Copy(w, r)
 	}
+
 	c := make(chan parser.Token)
 	e := make(chan error)
+
 	go handleTemplate(file, w, c, e)
+
 	var (
 		rw rwcount.Reader
 		p  parser.Parser
 	)
+
 	if lr, ok := r.(*memio.LimitedBuffer); ok {
 		rw.Count = int64(len(*lr))
 		p = parser.New(parser.NewByteTokeniser(*lr))
@@ -52,7 +56,9 @@ func prettify(file *File, w io.Writer, r io.Reader, tf parser.TokenFunc) (int64,
 		rw.Reader = r
 		p = parser.New(parser.NewReaderTokeniser(&rw))
 	}
+
 	p.TokeniserState(tf)
+
 	for {
 		tk, err := p.GetToken()
 		if err != nil {
@@ -60,21 +66,27 @@ func prettify(file *File, w io.Writer, r io.Reader, tf parser.TokenFunc) (int64,
 			<-e
 			return rw.Count, err
 		}
+
 		if tk.Type == parser.TokenDone {
 			close(c)
+
 			break
 		}
+
 		select {
 		case c <- tk:
 		case err := <-e:
 			return rw.Count, err
 		}
 	}
+
 	if err := <-e; err != nil {
 		return rw.Count, err
 	}
+
 	if rw.Err == io.EOF {
 		rw.Err = nil
 	}
+
 	return rw.Count, rw.Err
 }
