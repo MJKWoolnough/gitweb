@@ -25,18 +25,18 @@ func commentsPlain(t *parser.Tokeniser) (parser.Token, parser.TokenFunc) {
 				case -1, '\n':
 					return t.Error()
 				case '\\':
-					t.Except("")
-					t.Except("")
+					t.Next()
+					t.Next()
 				case c:
-					t.Except("")
+					t.Next()
 
 					break QuoteLoop
 				}
 			}
 		case '`':
-			return parser.Token{Data: t.Get()}, commentsMultilineQuoted
+			return t.Return(TokenUnknown, commentsMultilineQuoted)
 		case '/':
-			return parser.Token{Data: t.Get()}, comments
+			return t.Return(TokenUnknown, comments)
 		default:
 			return commentsOutputRest(t)
 		}
@@ -45,7 +45,7 @@ func commentsPlain(t *parser.Tokeniser) (parser.Token, parser.TokenFunc) {
 
 func commentsMultilineQuoted(t *parser.Tokeniser) (parser.Token, parser.TokenFunc) {
 	if t.ExceptRun("`") == '`' {
-		t.Except("")
+		t.Next()
 
 		return commentsPlain(t)
 	}
@@ -54,15 +54,12 @@ func commentsMultilineQuoted(t *parser.Tokeniser) (parser.Token, parser.TokenFun
 }
 
 func comments(t *parser.Tokeniser) (parser.Token, parser.TokenFunc) {
-	t.Except("")
+	t.Next()
 
 	if t.Accept("/") {
 		t.ExceptRun("\n")
 
-		return parser.Token{
-			Type: TokenComment,
-			Data: t.Get(),
-		}, commentsPlain
+		return t.Return(TokenComment, commentsPlain)
 	} else if t.Accept("*") {
 		return commentsMultiline(t)
 	}
@@ -73,13 +70,10 @@ func comments(t *parser.Tokeniser) (parser.Token, parser.TokenFunc) {
 func commentsMultiline(t *parser.Tokeniser) (parser.Token, parser.TokenFunc) {
 	for {
 		if t.ExceptRun("*") == '*' {
-			t.Except("")
+			t.Next()
 
 			if t.Accept("/") {
-				return parser.Token{
-					Type: TokenComment,
-					Data: t.Get(),
-				}, commentsPlain
+				return t.Return(TokenComment, commentsPlain)
 			}
 		} else {
 			return commentsOutputRest(t)
@@ -90,7 +84,5 @@ func commentsMultiline(t *parser.Tokeniser) (parser.Token, parser.TokenFunc) {
 func commentsOutputRest(t *parser.Tokeniser) (parser.Token, parser.TokenFunc) {
 	t.ExceptRun("")
 
-	return parser.Token{
-		Data: t.Get(),
-	}, (*parser.Tokeniser).Done
+	return t.Return(TokenUnknown, nil)
 }
