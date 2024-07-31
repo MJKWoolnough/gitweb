@@ -9,4 +9,4 @@ require (
 
 require vimagination.zapto.org/rwcount v1.1.1
 
-require vimagination.zapto.org/parser v1.0.1
+require vimagination.zapto.org/parser v1.0.3
