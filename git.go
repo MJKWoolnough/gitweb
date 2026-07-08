@@ -35,13 +35,13 @@ var (
 		"tag ",
 	}
 	bufPool = sync.Pool{
-		New: func() interface{} {
+		New: func() any {
 			return new([21]byte)
 		},
 	}
 	zHeader = memio.Buffer{8, 29}
 	zPool   = sync.Pool{
-		New: func() interface{} {
+		New: func() any {
 			h := zHeader
 			z, _ := zlib.NewReader(&h)
 			return &zReadCloser{
@@ -99,14 +99,14 @@ type Repo struct {
 	packObjects map[string]packObject
 
 	cacheMu    sync.RWMutex
-	cache      map[string]interface{}
+	cache      map[string]any
 	lastCommit string
 }
 
 func OpenRepo(path string) *Repo {
 	return &Repo{
 		path:  path,
-		cache: make(map[string]interface{}),
+		cache: make(map[string]any),
 	}
 }
 
